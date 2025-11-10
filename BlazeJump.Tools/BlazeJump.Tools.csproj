@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net9.0-android</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+    
+    <!-- NuGet Package Properties -->
+    <PackageId>BlazeJump.Tools</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Michael Samy</Authors>
+    <Company>BlazeJump</Company>
+    <Product>BlazeJump Common Tools</Product>
+    <Description>A comprehensive toolkit for Nostr protocol integration including relay management, cryptographic services, message handling, and user profile management for Blazor applications.</Description>
+    <PackageTags>nostr;blazor;relay;crypto;websocket;messaging;nip;decentralized</PackageTags>
+    <PackageProjectUrl>https://github.com/drmikesamy/BlazeJump</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/drmikesamy/BlazeJump</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright (c) 2025 Michael Samy</Copyright>
+    
+    <!-- Symbol Package Configuration -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    
+    <!-- Source Link Configuration -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Core Dependencies -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="AutoMapper" Version="13.0.1" />
+    
+    <!-- JSON Serialization -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    
+    <!-- Blazor and MAUI Dependencies -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.0" />
+    
+    <!-- Cryptography -->
+    <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.4" />
+    
+    <!-- QR Code Generation -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+    
+    <!-- Bech32 Encoding -->
+    <PackageReference Include="Nano.Bech32" Version="1.0.0" />
+    
+    <!-- Source Link for debugging -->
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

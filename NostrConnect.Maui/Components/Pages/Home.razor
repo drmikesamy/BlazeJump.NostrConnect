@@ -1,0 +1,62 @@
+﻿@page "/"
+@using NostrConnect.Shared.Components
+@using NostrConnect.Maui.Components
+@using NostrConnect.Shared.Services
+@inject IKeyStorageService KeyStorage
+
+<PageTitle>Nostr Connect</PageTitle>
+
+<div class="container mt-4">
+    <h1>Nostr Connect - Mobile App</h1>
+    
+    @if (!_hasKeys)
+    {
+        <div class="alert alert-warning">
+            <p>Welcome! First, let's set up your Nostr identity.</p>
+        </div>
+        <KeySetup OnKeysChanged="OnKeysChanged" />
+    }
+    else
+    {
+        <div class="mt-4">
+            <KeySetup OnKeysChanged="OnKeysChanged" />
+            
+            <div class="mt-4">
+                <h2>Connect to Web Browser</h2>
+                <p>Scan a QR code from the web app to connect and sign events.</p>
+                <QRScanner OnConnected="OnConnectedToWeb" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_connectedSessionId))
+            {
+                <div class="alert alert-success mt-3">
+                    <h4>Connected to web session!</h4>
+                    <p>Session ID: @_connectedSessionId</p>
+                    <p>You can now sign events from your browser.</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _hasKeys;
+    private string _connectedSessionId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hasKeys = await KeyStorage.HasStoredKeyPairAsync();
+    }
+
+    private async Task OnKeysChanged()
+    {
+        _hasKeys = await KeyStorage.HasStoredKeyPairAsync();
+        StateHasChanged();
+    }
+
+    private void OnConnectedToWeb(string sessionId)
+    {
+        _connectedSessionId = sessionId;
+        StateHasChanged();
+    }
+}

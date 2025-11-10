@@ -1,0 +1,36 @@
+@using NostrConnect.Shared.Services
+@using NostrConnect.Shared.Models
+@using NostrConnect.Maui.Pages
+@inject INostrConnectService NostrConnectService
+@inject IKeyStorageService KeyStorage
+
+<div class="qr-scanner">
+    <h3>Scan QR Code to Connect</h3>
+    
+    <p>Scan a QR code from a web app to establish a secure encrypted connection.</p>
+    
+    <button class="btn btn-primary btn-lg mt-3" onclick="@StartScanning">
+        <i class="bi bi-camera-fill"></i> Open Camera Scanner
+    </button>
+</div>
+
+@code {
+    private string _manualInput = string.Empty;
+    private string _message = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> OnConnected { get; set; }
+
+    private async Task StartScanning()
+    {
+        try
+        {
+            var scannerPage = new QRScannerPage(NostrConnectService, KeyStorage);
+            await Application.Current.MainPage.Navigation.PushModalAsync(scannerPage);
+        }
+        catch (Exception ex)
+        {
+            _message = $"Error opening camera: {ex.Message}";
+        }
+    }
+}

@@ -1,0 +1,38 @@
+﻿@page "/"
+@using NostrConnect.Web.Components
+@rendermode InteractiveServer
+
+<PageTitle>Nostr Connect - Web</PageTitle>
+
+<div class="container mt-4">
+    <h1>Nostr Connect - Web Browser</h1>
+    
+    <div class="alert alert-info">
+        <h4>Connect Your Mobile Device</h4>
+        <p>Scan the QR code below with your Nostr Connect mobile app to sign events securely from your phone.</p>
+    </div>
+
+    <QRConnect />
+
+    <div class="mt-5">
+        <h2>How it works</h2>
+        <ol>
+            <li>Install the Nostr Connect app on your Android device</li>
+            <li>Generate a permanent key pair in the app (stored securely on your device)</li>
+            <li>Scan the QR code on this page with the app</li>
+            <li>Your phone will become the signing device for this browser session</li>
+            <li>All private key operations happen on your phone - never on the web</li>
+        </ol>
+    </div>
+
+    <div class="mt-4">
+        <h3>Features</h3>
+        <ul>
+            <li>✓ Generate permanent keys on device</li>
+            <li>✓ Secure key storage using Android secure storage</li>
+            <li>✓ QR code connection between devices</li>
+            <li>✓ Ephemeral web keys (never stored)</li>
+            <li>✓ Phone acts as signing authority</li>
+        </ul>
+    </div>
+</div>
