@@ -2,8 +2,6 @@
 
 A cross-platform Nostr Connect implementation that enables secure communication between a web browser client and an Android mobile device for cryptographic signing operations.
 
-## ?? Screenshots
-
 <div align="center">
 
 ### Browser QR Code Generation
