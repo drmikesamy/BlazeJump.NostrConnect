@@ -27,8 +27,8 @@ NostrConnect allows you to use your Android device as a secure signing device fo
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/drmikesamy/SingleHealthRecord.git
-   cd SingleHealthRecord
+   git clone https://github.com/drmikesamy/BlazeJump.NostrConnect.git
+   cd BlazeJump.NostrConnect
    ```
 
 2. Navigate to the web project:
@@ -90,12 +90,6 @@ NostrConnect allows you to use your Android device as a secure signing device fo
    ```bash
    adb install path/to/your-app.apk
    ```
-
-### Publishing to Google Play Store
-
-1. Create a signed release build with the steps above
-2. Follow [Google Play Console documentation](https://support.google.com/googleplay/android-developer/answer/9859152)
-3. Upload your AAB/APK through the Google Play Console
 
 ## Connecting Android and Desktop
 
