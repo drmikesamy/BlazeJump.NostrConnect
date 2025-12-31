@@ -2,6 +2,35 @@
 
 A cross-platform Nostr Connect implementation that enables secure communication between a web browser client and an Android mobile device for cryptographic signing operations.
 
+## ?? Screenshots
+
+<div align="center">
+
+### Browser QR Code Generation
+<img src="DemoImages/QRBrowser.jpeg" alt="Browser QR Code" width="600"/>
+
+### Mobile App - Link Device
+<img src="DemoImages/LinkDevice.jpeg" alt="Link Device" width="300"/>
+
+### Scanning QR Code
+<img src="DemoImages/QRScan.jpeg" alt="QR Scan" width="300"/>
+
+### Connected Sessions
+<table>
+<tr>
+<td><img src="DemoImages/Connected.jpeg" alt="Mobile Connected" width="300"/></td>
+<td><img src="DemoImages/ConnectedBrowser.jpeg" alt="Browser Connected" width="600"/></td>
+</tr>
+<tr>
+<td align="center"><i>Mobile: Connected Device</i></td>
+<td align="center"><i>Browser: Active Session</i></td>
+</tr>
+</table>
+
+</div>
+
+---
+
 ## Overview
 
 NostrConnect allows you to use your Android device as a secure signing device for Nostr events. The web application generates QR codes that can be scanned by the mobile app to establish an encrypted connection over Nostr relays.
