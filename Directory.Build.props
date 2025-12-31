@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Android SDK Configuration -->
+    <AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' And Exists('/home/mike/Android/Sdk')">/home/mike/Android/Sdk</AndroidSdkDirectory>
+    <ANDROID_HOME Condition="'$(ANDROID_HOME)' == ''">/home/mike/Android/Sdk</ANDROID_HOME>
+  </PropertyGroup>
+</Project>

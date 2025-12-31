@@ -58,7 +58,7 @@ namespace BlazeJump.Tools.Models
 		/// Gets or sets the user/author information (not serialized).
 		/// </summary>
 		[JsonIgnore]
-        public User? User { get; set; }
+        public UserProfile? User { get; set; }
 		
 		/// <summary>
 		/// Gets the created timestamp as a local DateTime.

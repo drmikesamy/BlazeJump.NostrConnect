@@ -3,16 +3,17 @@ using BlazeJump.Tools.Models;
 using BlazeJump.Tools.Services.Connections;
 using BlazeJump.Tools.Services.Crypto;
 using Newtonsoft.Json;
-using BlazeJump.Tools.Services.UserProfile;
 using Microsoft.Maui.Controls;
 using System;
 using System.Diagnostics;
 using BlazeJump.Tools.Builders;
 using BlazeJump.Tools.Helpers;
+using BlazeJump.Tools.Services.Logging;
 using BlazeJump.Tools.Services.Notification;
 using BlazeJump.Helpers;
 using AutoMapper;
 using System.Collections.Concurrent;
+using BlazeJump.Tools.Services.Identity;
 
 namespace BlazeJump.Tools.Services.Message
 {
@@ -23,9 +24,13 @@ namespace BlazeJump.Tools.Services.Message
 	{
 		private IRelayManager _relayManager;
 		private ICryptoService _cryptoService;
-		private IUserProfileService _userProfileService;
 		private INotificationService _notificationService;
 		private IMapper _mapper;
+
+		/// <summary>
+		/// Triggers an event to process a new nostr connect login.
+		/// </summary>
+		public event EventHandler<NMessage>? ProcessNostrConnectMessage;
 
 		/// <summary>
 		/// Gets or sets the message store for caching events.
@@ -47,15 +52,13 @@ namespace BlazeJump.Tools.Services.Message
 		/// </summary>
 		/// <param name="relayManager">The relay manager for connection handling.</param>
 		/// <param name="cryptoService">The crypto service for encryption and signing.</param>
-		/// <param name="userProfileService">The user profile service.</param>
 		/// <param name="notificationService">The notification service.</param>
 		/// <param name="mapper">The AutoMapper instance.</param>
-		public MessageService(IRelayManager relayManager, ICryptoService cryptoService,
-			IUserProfileService userProfileService, INotificationService notificationService, IMapper mapper)
+		/// <param name="loggingService">The logging service.</param>
+		public MessageService(IRelayManager relayManager, ICryptoService cryptoService, INotificationService notificationService, IMapper mapper, ILoggingService loggingService)
 		{
 			_relayManager = relayManager;
 			_cryptoService = cryptoService;
-			_userProfileService = userProfileService;
 			_notificationService = notificationService;
 			_mapper = mapper;
 			_relayManager.ProcessMessageQueue += ProcessReceivedMessages;
@@ -136,12 +139,11 @@ namespace BlazeJump.Tools.Services.Message
 
 		private void ProcessReceivedMessages(object? sender, EventArgs e)
 		{
-			Console.WriteLine($"Process queue called...");
 			while (_relayManager.ReceivedMessages.TryDequeue(out var message))
 			{
 				if (message.MessageType == MessageTypeEnum.Eose)
 				{
-					Console.WriteLine($"EOSE message received. Refreshing view.");
+					_relayManager.ReceivedMessages.TryDequeue(out _);
 					if (message.SubscriptionId != null)
 					{
 						EndOfFetch(message.SubscriptionId);
@@ -152,35 +154,30 @@ namespace BlazeJump.Tools.Services.Message
 
 				if (message.Event == null)
 				{
-					Console.WriteLine($"Message has no event. Skipping.");
-					continue;
+					break;
 				}
 
-				Console.WriteLine(
-					$"Processing {message.MessageType} message with id {message.Event.Id} and Kind {message.Event.Kind}");
+				_relayManager.ReceivedMessages.TryDequeue(out _);
+
 				switch (message.Event.Kind)
 				{
 					case KindEnum.Metadata:
-						lock (MessageStore)
+						if (message.Event.Pubkey != null)
 						{
-							if (message.Event.Pubkey != null)
-							{
-								MessageStore.TryAdd(message.Event.Pubkey, message);
-							}
+							MessageStore.TryAdd(message.Event.Pubkey, message);
 						}
 						break;
-					case KindEnum.Text:
-						lock (MessageStore)
+					case KindEnum.NostrConnect:
+						ProcessNostrConnectMessage?.Invoke(this, message);
+						break;
+					default:
+						if (message.Event.Id != null)
 						{
-							if (message.Event.Id != null)
-							{
-								MessageStore.TryAdd(message.Event.Id, message);
-							}
+							MessageStore.TryAdd(message.Event.Id, message);
 						}
 						break;
 				}
 
-				Console.WriteLine($"Processing relations for {message.MessageType} message with id {message.Event.Id}");
 				lock (RelationRegister)
 				{
 					ProcessRelations(message);
@@ -199,7 +196,7 @@ namespace BlazeJump.Tools.Services.Message
 					RelationRegister.AddRelation(message.Event.Id, RelationTypeEnum.UserByEvent, message.Event.Pubkey);
 				}
 
-				if (message.SubscriptionId != null && 
+				if (message.SubscriptionId != null &&
 					RelationRegister.TryGetRelation(message.SubscriptionId, RelationTypeEnum.SubscriptionGuidToIds, out var _) &&
 					message.Event?.Pubkey != null)
 				{
@@ -302,7 +299,7 @@ namespace BlazeJump.Tools.Services.Message
 				{
 					var pendingEventId = EventsAwaitingMetaData.Dequeue();
 					if (MessageStore.TryGetValue(pendingEventId, out var eventAwaitingMetadata) &&
-					    eventAwaitingMetadata.Event?.Pubkey != null)
+						eventAwaitingMetadata.Event?.Pubkey != null)
 					{
 						pendingUserIds.Add(eventAwaitingMetadata.Event.Pubkey);
 					}
@@ -320,15 +317,12 @@ namespace BlazeJump.Tools.Services.Message
 
 		private async Task<bool> Sign(NEvent nEvent)
 		{
-			if (_cryptoService.EtherealPublicKey == null)
-			{
-				_cryptoService.CreateEtherealKeyPair();
-			}
-			nEvent.Pubkey = Convert.ToHexString(_cryptoService.EtherealPublicKey!.ToXOnlyPubKey().ToBytes()).ToLower();
+			if (string.IsNullOrEmpty(nEvent.Pubkey))
+				return false;
 			var signableEvent = _mapper.Map<NEvent, SignableNEvent>(nEvent);
 			var serialisedNEvent = JsonConvert.SerializeObject(signableEvent);
 			nEvent.Id = Convert.ToHexString(serialisedNEvent.SHA256Hash()).ToLower();
-			var signature = await _cryptoService.Sign(serialisedNEvent);
+			var signature = await _cryptoService.Sign(serialisedNEvent, nEvent.Pubkey);
 			nEvent.Sig = signature;
 			return true;
 		}
@@ -359,9 +353,9 @@ namespace BlazeJump.Tools.Services.Message
 		/// <returns>A task representing the asynchronous operation.</returns>
 		public async Task Send(KindEnum kind, NEvent nEvent, string? encryptPubKey = null)
 		{
-			if (!String.IsNullOrEmpty(encryptPubKey) && !String.IsNullOrEmpty(nEvent.Content))
+			if (!String.IsNullOrEmpty(encryptPubKey) && !String.IsNullOrEmpty(nEvent.Content) && !String.IsNullOrEmpty(nEvent.Pubkey))
 			{
-				var encryptedContent = await _cryptoService.AesEncrypt(nEvent.Content, encryptPubKey);
+				var encryptedContent = await _cryptoService.Nip44Encrypt(nEvent.Content, encryptPubKey, nEvent.Pubkey);
 				nEvent.Content = JsonConvert.SerializeObject(encryptedContent);
 			}
 			await Sign(nEvent);
@@ -372,24 +366,25 @@ namespace BlazeJump.Tools.Services.Message
 		/// <summary>
 		/// Creates a new Nostr event.
 		/// </summary>
+		/// <param name="pubkey">The event public key.</param>
 		/// <param name="kind">The event kind.</param>
 		/// <param name="message">The event message content.</param>
 		/// <param name="parentId">Optional parent event ID.</param>
 		/// <param name="rootId">Optional root event ID.</param>
 		/// <param name="ptags">Optional list of public key tags.</param>
 		/// <returns>The created Nostr event.</returns>
-		public NEvent CreateNEvent(KindEnum kind, string message, string? parentId = null, string? rootId = null, List<string>? ptags = null)
+		public NEvent CreateNEvent(string pubkey, KindEnum kind, string message, string? parentId = null, string? rootId = null, List<string>? ptags = null)
 		{
 			var newEvent = new NEvent
 			{
-				Pubkey = _userProfileService.NPubKey,
+				Pubkey = pubkey,
 				Kind = kind,
 				Content = message,
 				Created_At = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
 			};
 			if (parentId != null)
 			{
-				newEvent!.Tags.Add(new EventTag
+				newEvent!.Tags!.Add(new EventTag
 				{
 					Key = TagEnum.e,
 					Value = parentId,
@@ -398,7 +393,7 @@ namespace BlazeJump.Tools.Services.Message
 			}
 			if (rootId != null)
 			{
-				newEvent!.Tags.Add(new EventTag
+				newEvent!.Tags!.Add(new EventTag
 				{
 					Key = TagEnum.e,
 					Value = rootId,
@@ -409,7 +404,7 @@ namespace BlazeJump.Tools.Services.Message
 			{
 				foreach (var ptag in ptags)
 				{
-					newEvent!.Tags.Add(new EventTag
+					newEvent!.Tags!.Add(new EventTag
 					{
 						Key = TagEnum.p,
 						Value = ptag

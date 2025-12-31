@@ -42,7 +42,7 @@ namespace BlazeJump.Tools.JsonConverters
 						var evt = JsonConvert.DeserializeObject<NEvent>(eventJa);
 						if(evt?.Kind == KindEnum.Metadata && !string.IsNullOrEmpty(evt.Content))
 						{
-							evt.User = JsonConvert.DeserializeObject<User>(evt.Content);
+							evt.User = JsonConvert.DeserializeObject<UserProfile>(evt.Content);
 						}
 						message.SubscriptionId = eventSubscriptionId;
 						message.Event = evt;

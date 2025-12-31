@@ -1,0 +1,508 @@
+@page "/edit-profile"
+@implements IDisposable
+@using System
+@using System.Threading
+@using Microsoft.AspNetCore.Components.Forms
+@using BlazeJump.Tools.Services.Persistence
+@using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Crypto
+@using BlazeJump.Tools.Services.Message
+@using BlazeJump.Tools.Services.Logging
+@using BlazeJump.Tools.Services.Connections
+@using BlazeJump.Tools.Enums
+@using BlazeJump.Tools.Models
+@using BlazeJump.Tools.Helpers
+@using Newtonsoft.Json
+@inject INostrDataService DataService
+@inject ICryptoService CryptoService
+@inject IMessageService MessageService
+@inject IRelayManager RelayManager
+@inject ILoggingService LoggingService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Profile</PageTitle>
+
+<div class="page">
+    <div class="content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3><i class="bi bi-person-circle"></i> Manage Identities</h3>
+            <button class="btn btn-secondary btn-sm" @onclick="GoBack">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="text-center p-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading identities...</p>
+            </div>
+        }
+        else if (_allProfiles != null && _allProfiles.Any())
+        {
+            <!-- Tabs Navigation -->
+            <ul class="nav nav-tabs mb-3">
+                @foreach (var profile in _allProfiles)
+                {
+                    <li class="nav-item">
+                        <button class="nav-link @(profile.PublicKey == _profile!.PublicKey ? "active" : "")"
+                                @onclick="() => SwitchToProfile(profile.PublicKey)">
+                            @if (profile.IsCurrentUser)
+                            {
+                                <i class="bi bi-check-circle-fill text-success me-1"></i>
+                            }
+                            @profile.Name
+                        </button>
+                    </li>
+                }
+            </ul>
+
+            <!-- Active Profile Content -->
+            @if (_profile != null)
+            {
+                <div class="card">
+                    <div class="card-body">
+                        @if (!_profile.IsCurrentUser)
+                        {
+                            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-info-circle"></i> This is not your currently active identity.</span>
+                                <button class="btn btn-primary btn-sm" @onclick="ActivateProfile">
+                                    <i class="bi bi-check-circle"></i> Activate This Identity
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-success">
+                                <i class="bi bi-check-circle-fill"></i> This is your currently active identity.
+                            </div>
+                        }
+
+                        <EditForm Model="_profile" OnValidSubmit="SaveProfile">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label">Public Key (Hex)</label>
+                            <input type="text" class="form-control font-monospace small" value="@_profile.PublicKey" readonly />
+                            <small class="text-muted">Your Nostr public key (32-byte hex, no prefix)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Public Key (npub)</label>
+                            <input type="text" class="form-control font-monospace small" value="@GeneralHelpers.HexToBech32(_profile.PublicKey, Bech32PrefixEnum.npub);" readonly />
+                            <small class="text-muted">Bech32-encoded public key for easy sharing</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Display Name</label>
+                            <InputText class="form-control" @bind-Value="_profile.Name" placeholder="Your display name" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">About</label>
+                            <InputTextArea class="form-control" @bind-Value="_profile.About" placeholder="Tell others about yourself" rows="4" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Profile Picture URL</label>
+                            <InputText class="form-control" @bind-Value="_profile.Picture" placeholder="https://example.com/avatar.jpg" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Banner Image URL</label>
+                            <InputText class="form-control" @bind-Value="_profile.Banner" placeholder="https://example.com/banner.jpg" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Website</label>
+                            <InputText class="form-control" @bind-Value="_profile.Website" placeholder="https://yourwebsite.com" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">NIP-05 Identifier</label>
+                            <InputText class="form-control" @bind-Value="_profile.Nip05" placeholder="name@domain.com" />
+                            <small class="text-muted">Verified identifier (requires domain configuration)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Lightning Address (LUD16)</label>
+                            <InputText class="form-control" @bind-Value="_profile.Lud16" placeholder="name@lightningaddress.com" />
+                            <small class="text-muted">For receiving Lightning Network payments</small>
+                        </div>
+
+                        <ValidationSummary />
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg" disabled="@_isSaving">
+                                @if (_isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    <span>Publishing to relays...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-cloud-upload"></i>
+                                    <span>Save & Publish to Relays</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+
+                    @if (!string.IsNullOrEmpty(_message))
+                    {
+                        <div class="alert @(_isError ? "alert-danger" : "alert-success") mt-3" role="alert">
+                            @_message
+                        </div>
+                    }
+
+                    @if (_relayResponses.Any())
+                    {
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <small class="text-muted">Relay Responses</small>
+                            </div>
+                            <div class="card-body p-2">
+                                @foreach (var response in _relayResponses)
+                                {
+                                    <div class="small @(response.StartsWith("✓") ? "text-success" : "text-danger") mb-1">
+                                        @response
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            }
+        }
+        else
+        {
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> Unable to load identities. Please try again.
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private UserProfile? _profile;
+    private List<UserProfile> _allProfiles = new();
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private string _message = string.Empty;
+    private bool _isError = false;
+    private string? _awaitingEventId = null;
+    private List<string> _relayResponses = new();
+    private int _expectedRelayCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadAllProfiles();
+            
+            RelayManager.ProcessMessageQueue += OnRelayMessageReceived;
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log($"Error initializing edit profile page: {ex.Message}");
+            _isError = true;
+            _message = "Failed to initialize profile editor.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (RelayManager != null)
+        {
+            RelayManager.ProcessMessageQueue -= OnRelayMessageReceived;
+        }
+    }
+
+    private async Task LoadAllProfiles()
+    {
+        _allProfiles = await DataService.GetAllUserProfilesAsync();
+        
+        if (_allProfiles.Any())
+        {
+            var currentProfile = _allProfiles.FirstOrDefault(p => p.IsCurrentUser);
+            if (currentProfile != null)
+            {
+                _profile = currentProfile;
+            }
+            else
+            {
+                _profile = _allProfiles.First();
+                _profile.IsCurrentUser = true;
+                await DataService.SaveUserProfileAsync(_profile);
+            }
+        }
+        else
+        {
+            _isError = true;
+            _message = "No identity found. Please initialize your keys first.";
+        }
+    }
+
+    private void SwitchToProfile(string publicKey)
+    {
+        _profile = _allProfiles.FirstOrDefault(p => p.PublicKey == publicKey);
+        StateHasChanged();
+    }
+
+    private async Task ActivateProfile()
+    {
+        if (_profile == null) return;
+        
+        foreach (var profile in _allProfiles)
+        {
+            profile.IsCurrentUser = profile.PublicKey == _profile.PublicKey;
+            await DataService.SaveUserProfileAsync(profile);
+        }
+        
+        _message = "Identity activated successfully!";
+        _isError = false;
+        StateHasChanged();
+        
+        await Task.Delay(1500);
+        GoBack();
+    }
+
+    private void OnRelayMessageReceived(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrEmpty(_awaitingEventId)) return;
+
+        while (RelayManager.ReceivedMessages.TryPeek(out var message))
+        {
+            if (message.MessageType == MessageTypeEnum.Ok && 
+                message.NEventId == _awaitingEventId)
+            {
+                RelayManager.ReceivedMessages.TryDequeue(out _);
+                
+                var response = message.Success == true 
+                    ? $"✓ Relay accepted: {message.NoticeMessage ?? "OK"}"
+                    : $"✗ Relay rejected: {message.NoticeMessage ?? "Failed"}";
+                
+                _relayResponses.Add(response);
+                LoggingService.Log($"[PROFILE PUBLISH] {response}");
+
+                InvokeAsync(() => StateHasChanged());
+                
+                if (_relayResponses.Count >= _expectedRelayCount)
+                {
+                    OnAllRelayResponsesReceived();
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+    private void OnAllRelayResponsesReceived()
+    {
+        InvokeAsync(async () =>
+        {
+            var successCount = _relayResponses.Count(r => r.StartsWith("✓"));
+            _message = $"Profile published! {successCount}/{_expectedRelayCount} relays confirmed.";
+            _isError = successCount == 0;
+            StateHasChanged();
+
+            await Task.Delay(2000);
+            GoBack();
+        });
+    }
+
+    private async Task SaveProfile()
+    {
+        if (_profile == null) return;
+
+        _isSaving = true;
+        _message = string.Empty;
+        _isError = false;
+        _awaitingEventId = null;
+        _relayResponses.Clear();
+        StateHasChanged();
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                await DataService.SaveUserProfileAsync(_profile);
+            });
+            
+            LoggingService.Log("Profile saved to local database");
+
+            var relays = await Task.Run(() => RelayManager.Relays?.ToList() ?? new List<string>());
+            _expectedRelayCount = relays.Count;
+            
+            if (relays.Count == 0)
+            {
+                await InvokeAsync(() =>
+                {
+                    _message = "Profile saved locally! Add relays in 'Edit Relays' to publish to the network.";
+                    _isError = false;
+                    StateHasChanged();
+                });
+                
+                await Task.Delay(2000);
+                await InvokeAsync(() => GoBack());
+                return;
+            }
+
+            LoggingService.Log($"Found {relays.Count} relay(s), preparing to publish...");
+
+            var metadataJson = await Task.Run(() =>
+            {
+                var metadata = new
+                {
+                    name = _profile.Name,
+                    about = _profile.About,
+                    picture = _profile.Picture,
+                    banner = _profile.Banner,
+                    website = _profile.Website,
+                    nip05 = _profile.Nip05,
+                    lud16 = _profile.Lud16
+                };
+
+                return JsonConvert.SerializeObject(metadata, new JsonSerializerSettings
+                {
+                    NullValueHandling = NullValueHandling.Ignore
+                });
+            });
+
+            LoggingService.Log($"Publishing profile metadata to relays...");
+
+            bool publishSuccess = false;
+            string? errorMessage = null;
+            string? eventId = null;
+
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                
+                await Task.Run(async () =>
+                {
+                    try
+                    {
+                        LoggingService.Log("Creating NEvent...");
+                        var nEvent = MessageService.CreateNEvent(_profile.PublicKey, KindEnum.Metadata, metadataJson);
+                        
+                        LoggingService.Log($"Sending event to {relays.Count} relay(s)...");
+                        await MessageService.Send(KindEnum.Metadata, nEvent);
+                        
+                        eventId = nEvent.Id;
+                        LoggingService.Log($"Profile published successfully. Event ID: {nEvent.Id}");
+                        publishSuccess = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggingService.Log($"Error in publish task: {ex.Message}");
+                        errorMessage = ex.Message;
+                    }
+                }, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                LoggingService.Log("Publishing operation timed out after 30 seconds");
+                errorMessage = "Timeout - continuing in background";
+            }
+            catch (Exception ex)
+            {
+                LoggingService.Log($"Error during publish: {ex.Message}");
+                errorMessage = ex.Message;
+            }
+
+            await InvokeAsync(() =>
+            {
+                if (publishSuccess && !string.IsNullOrEmpty(eventId))
+                {
+                    _awaitingEventId = eventId;
+                    _message = $"Waiting for {_expectedRelayCount} relay confirmation(s)...";
+                    _isError = false;
+                }
+                else if (errorMessage == "Timeout - continuing in background")
+                {
+                    _message = "Profile saved! Publishing to relays in background...";
+                    _isError = false;
+                }
+                else
+                {
+                    _message = $"Profile saved, but error publishing: {errorMessage ?? "Unknown error"}";
+                    _isError = true;
+                }
+                
+                StateHasChanged();
+            });
+
+            if (publishSuccess && !string.IsNullOrEmpty(eventId))
+            {
+                var waitStart = DateTime.UtcNow;
+                while ((DateTime.UtcNow - waitStart).TotalSeconds < 10)
+                {
+                    if (_relayResponses.Count >= _expectedRelayCount)
+                    {
+                        break;
+                    }
+                    await Task.Delay(100);
+                }
+
+                if (_relayResponses.Count < _expectedRelayCount)
+                {
+                    await InvokeAsync(() =>
+                    {
+                        var successCount = _relayResponses.Count(r => r.StartsWith("✓"));
+                        _message = $"Profile published! {successCount}/{_relayResponses.Count} relays confirmed (of {_expectedRelayCount} total).";
+                        _isError = successCount == 0 && _relayResponses.Count > 0;
+                        StateHasChanged();
+                    });
+                }
+                
+                await Task.Delay(1500);
+                await InvokeAsync(() => GoBack());
+            }
+            else if (errorMessage != "Timeout - continuing in background")
+            {
+                await Task.Delay(2000);
+                await InvokeAsync(() => GoBack());
+            }
+            else
+            {
+                await Task.Delay(1500);
+                await InvokeAsync(() => GoBack());
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log($"Error saving profile: {ex.Message}");
+            LoggingService.Log($"Stack trace: {ex.StackTrace}");
+            
+            await InvokeAsync(() =>
+            {
+                _message = $"Failed to save profile: {ex.Message}";
+                _isError = true;
+                StateHasChanged();
+            });
+        }
+        finally
+        {
+            await InvokeAsync(() =>
+            {
+                _isSaving = false;
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

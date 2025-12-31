@@ -1,38 +1,32 @@
 using ZXing.Net.Maui;
 using ZXing.Net.Maui.Controls;
-using NostrConnect.Shared.Services;
-
-#if ANDROID
-using Android.Util;
-#endif
+using BlazeJump.Tools.Services.Connections;
+using BlazeJump.Tools.Services.Crypto;
+using BlazeJump.Tools.Services.Identity;
+using NostrConnect.Maui.Services;
+using BlazeJump.Tools.Services.Persistence;
+using BlazeJump.Tools.Models.NostrConnect;
+using BlazeJump.Tools.Models;
+using BlazeJump.Tools.Builders;
+using NostrConnect.Maui.Services.Identity;
 
 namespace NostrConnect.Maui.Pages;
 
-public class QRScannerPage : ContentPage
+public partial class QRScannerPage : ContentPage
 {
-    private readonly INostrConnectService _nostrConnectService;
-    private readonly IKeyStorageService _keyStorageService;
+    private readonly INativeIdentityService _identityService;
+    private readonly INostrDataService _dataService;
     private bool _isProcessing = false;
-    private const string TAG = "NostrConnect";
-    
+
     private readonly CameraBarcodeReaderView _cameraView;
     private readonly Label _statusLabel;
     private readonly ActivityIndicator _processingIndicator;
-    private List<string> _statusMessages = new();
 
-    private void LogInfo(string message)
+    public QRScannerPage(INativeIdentityService identityService, INostrDataService dataService)
     {
-        Console.WriteLine(message);
-#if ANDROID
-        Log.Info(TAG, message);
-#endif
-    }
+        _identityService = identityService;
+        _dataService = dataService;
 
-    public QRScannerPage(INostrConnectService nostrConnectService, IKeyStorageService keyStorageService)
-    {
-        _nostrConnectService = nostrConnectService;
-        _keyStorageService = keyStorageService;
-        
         Title = "Scan QR Code";
         BackgroundColor = Color.FromArgb("#1a1a1a");
 
@@ -105,16 +99,16 @@ public class QRScannerPage : ContentPage
                             VerticalOptions = LayoutOptions.Center,
                             HorizontalOptions = LayoutOptions.Start
                         },
-                        closeButton.Apply(b => 
+                        closeButton.Apply(b =>
                         {
                             b.VerticalOptions = LayoutOptions.Center;
                             b.HorizontalOptions = LayoutOptions.End;
                         })
                     }
                 }.Apply(g => Grid.SetRow(g, 0)),
-                
+
                 _cameraView.Apply(c => Grid.SetRow(c, 1)),
-                
+
                 new StackLayout
                 {
                     BackgroundColor = Color.FromArgb("#2a2a2a"),
@@ -144,24 +138,9 @@ public class QRScannerPage : ContentPage
         };
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-        
-        var status = await Permissions.CheckStatusAsync<Permissions.Camera>();
-        if (status != PermissionStatus.Granted)
-        {
-            status = await Permissions.RequestAsync<Permissions.Camera>();
-            if (status != PermissionStatus.Granted)
-            {
-                await DisplayAlert("Permission Required", 
-                    "Camera permission is required to scan QR codes.", 
-                    "OK");
-                await Navigation.PopModalAsync();
-                return;
-            }
-        }
-
         _cameraView.IsDetecting = true;
         _statusLabel.Text = "Ready to scan...";
     }
@@ -190,70 +169,70 @@ public class QRScannerPage : ContentPage
 
             try
             {
+                _statusLabel.Text = $"Scanned: {scannedData.Substring(0, Math.Min(100, scannedData.Length))}...";
+
                 if (!scannedData.StartsWith("nostrconnect://", StringComparison.OrdinalIgnoreCase))
                 {
-                    await DisplayAlert("Invalid QR Code", 
-                        "This QR code does not contain a Nostr Connect connection string.", 
+                    await DisplayAlert("Invalid QR Code",
+                        "Not a Nostr Connect QR code.",
                         "OK");
                     await Navigation.PopModalAsync();
                     return;
                 }
 
-                var uri = new Uri(scannedData);
-                var webPubKey = uri.Host; // The web app's pubkey is the host part
+                var uriBuilder = NostrConnectUriBuilder.Parse(scannedData);
 
-                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-                var relay = query["relay"];
-                var secret = query["secret"];
-                var metadata = query["metadata"];
-
-                if (string.IsNullOrEmpty(webPubKey))
+                if (string.IsNullOrEmpty(uriBuilder.GetClientPubKey()) || string.IsNullOrEmpty(uriBuilder.GetRelays().FirstOrDefault()))
                 {
                     await DisplayAlert("Invalid Connection",
-                        "Missing public key in connection string.",
-                        "OK");
-                    await Navigation.PopModalAsync();
-                    return;
-                }
-                
-                var keyPair = await _keyStorageService.GetStoredKeyPairAsync();
-                if (keyPair == null)
-                {
-                    await DisplayAlert("No Keys Found", 
-                        "Please generate your Nostr identity keys first.", 
+                        $"Missing required data.",
                         "OK");
                     await Navigation.PopModalAsync();
                     return;
                 }
 
-                var sessionId = $"{webPubKey}_{keyPair.PublicKey}";
-                
-                var success = await _nostrConnectService.ConnectSessionAsync(
-                    webPubKey, 
-                    keyPair.PublicKey, 
-                    relay, 
-                    secret);
-                
-                if (success)
+                if (uriBuilder.GetRelays() != null)
                 {
-                    await DisplayAlert("Event Published", 
-                        $"Connection event published to relay.\n\nWaiting for web app to confirm receipt...\n\nCheck the status log for details.\n\nWeb App: {webPubKey.Substring(0, 16)}...\nYour Key: {keyPair.PublicKey.Substring(0, 16)}...", 
-                        "OK");
-                    await Navigation.PopModalAsync();
+                    foreach (var relayUrl in uriBuilder.GetRelays())
+                    {
+                        try
+                        {
+                            var relayInfo = new RelayInfo
+                            {
+                                Url = relayUrl,
+                                IsReadEnabled = true,
+                                IsWriteEnabled = true
+                            };
+                            await _dataService.AddRelayAsync(relayInfo);
+                            Console.WriteLine($"Added relay from QR code: {relayUrl}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Failed to add relay {relayUrl}: {ex.Message}");
+                        }
+                    }
                 }
-                else
+
+                await Navigation.PopModalAsync();
+
+                _ = Task.Run(async () =>
                 {
-                    await DisplayAlert("Connection Failed", 
-                        "Failed to publish connection event to relay.\n\nCheck the status log for details.", 
-                        "OK");
-                    await Navigation.PopModalAsync();
-                }
+                    try
+                    {
+                        await _identityService.OnQrConnectReceived(uriBuilder.GetClientPubKey(), uriBuilder.GetRelays(), uriBuilder.GetSecret(), uriBuilder.GetPermissions());
+                    }
+                    catch (Exception ex)
+                    {
+                        await MainThread.InvokeOnMainThreadAsync(async () =>
+                        {
+                            await DisplayAlert("Connection Error", $"Failed to establish connection: {ex.Message}", "OK");
+                        });
+                    }
+                });
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Error", 
-                    $"Failed to process connection: {ex.Message}\n\nCheck the status log for details.", 
-                    "OK");
+                await DisplayAlert("Error", $"Failed: {ex.Message}", "OK");
                 await Navigation.PopModalAsync();
             }
             finally

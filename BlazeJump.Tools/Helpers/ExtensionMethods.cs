@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
-using System.Security.Cryptography;
 using System.Text;
+using Org.BouncyCastle.Crypto.Digests;
 
 namespace BlazeJump.Helpers
 {
@@ -38,10 +38,12 @@ namespace BlazeJump.Helpers
 		/// <returns>A byte array containing the SHA256 hash.</returns>
 		public static byte[] SHA256Hash(this string inputString)
 		{
-			using (SHA256 sha256 = SHA256.Create())
-			{
-				return sha256.ComputeHash(Encoding.UTF8.GetBytes(inputString));
-			}
+			var sha256 = new Sha256Digest();
+			var inputBytes = Encoding.UTF8.GetBytes(inputString);
+			sha256.BlockUpdate(inputBytes, 0, inputBytes.Length);
+			var hash = new byte[32];
+			sha256.DoFinal(hash, 0);
+			return hash;
 		}
 		
 		/// <summary>

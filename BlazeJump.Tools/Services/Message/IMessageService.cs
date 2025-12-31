@@ -11,6 +11,11 @@ namespace BlazeJump.Tools.Services.Message
 	public interface IMessageService
 	{
 		/// <summary>
+		/// Occurs when a NostrConnect message is received.
+		/// </summary>
+		event EventHandler<NMessage>? ProcessNostrConnectMessage;
+
+		/// <summary>
 		/// Looks up a user by search string.
 		/// </summary>
 		/// <param name="searchString">The search string (npub, hex, or name).</param>
@@ -63,12 +68,13 @@ namespace BlazeJump.Tools.Services.Message
 		/// <summary>
 		/// Creates a new Nostr event.
 		/// </summary>
+		/// <param name="pubkey">The event public key.</param>
 		/// <param name="kind">The event kind.</param>
 		/// <param name="message">The event message content.</param>
 		/// <param name="parentId">Optional parent event ID.</param>
 		/// <param name="rootId">Optional root event ID.</param>
 		/// <param name="ptags">Optional list of public key tags.</param>
 		/// <returns>The created Nostr event.</returns>
-		NEvent CreateNEvent(KindEnum kind, string message, string? parentId = null, string? rootId = null, List<string>? ptags = null);
+		NEvent CreateNEvent(string pubkey, KindEnum kind, string message, string? parentId = null, string? rootId = null, List<string>? ptags = null);
 	}
 }

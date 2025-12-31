@@ -1,5 +1,5 @@
-﻿using BlazeJump.Tools.Enums;
-using BlazeJump.Tools.Models;
+﻿using BlazeJump.Tools.Models;
+using BlazeJump.Tools.Models.NostrConnect;
 
 namespace BlazeJump.Tools.Services.Identity
 {
@@ -9,26 +9,49 @@ namespace BlazeJump.Tools.Services.Identity
 	public interface IIdentityService
 	{
 		/// <summary>
-		/// Occurs when a QR connect request is received.
+		/// Event raised when a session's state changes.
 		/// </summary>
-		event EventHandler<QrConnectEventArgs> QrConnectReceived;
-
+		public event EventHandler<NostrConnectSession>? NotifySessionStateChanged;
+		
 		/// <summary>
-		/// Raises the QR connect received event.
+		/// Event raised when a ping response (pong) is received from a remote peer.
 		/// </summary>
-		/// <param name="e">The event arguments containing connection details.</param>
-		void OnQrConnectReceived(QrConnectEventArgs e);
-
+		public event EventHandler<NostrConnectResponse>? PingReceived;
+		
 		/// <summary>
-		/// Fetches the login scan response from relays.
+		/// Listens for Nostr Connect messages on specified relays for a given public key
 		/// </summary>
-		/// <param name="payload">The QR connect payload.</param>
-		/// <returns>A task representing the asynchronous operation.</returns>
-		Task FetchLoginScanResponse(QrConnectEventArgs payload);
-
+		/// <param name="relays">List of relay URLs to listen on</param>
+		/// <param name="pubkey">Public key to filter messages for</param>
+		Task ListenForNostrConnectMessages(List<string> relays, string pubkey);
+		
 		/// <summary>
-		/// Gets or sets the current platform.
+		/// Sends a ping request to the specified session to test connectivity.
 		/// </summary>
-		PlatformEnum Platform { get; set; }
+		/// <param name="session">The session to ping</param>
+		Task SendPing(NostrConnectSession session);
+		
+		/// <summary>
+		/// Sends a disconnect request to the specified session.
+		/// </summary>
+		/// <param name="session">The session to disconnect</param>
+		Task SendDisconnect(NostrConnectSession session);
+		
+		/// <summary>
+		/// Gets the dictionary of user profiles indexed by public key.
+		/// </summary>
+		Dictionary<string, UserProfile> UserProfiles { get; }
+		
+		/// <summary>
+		/// Gets or sets the currently active user profile.
+		/// </summary>
+		UserProfile? ActiveUserProfile { get; set; }
+		
+		/// <summary>
+		/// Creates a new user profile with an optional private key. If no private key is provided, a new one will be generated.
+		/// </summary>
+		/// <param name="privateKey">Optional private key in hex format. If null, a new key pair will be generated.</param>
+		/// <returns>A task that represents the asynchronous operation.</returns>
+		Task CreateUserProfile(string? privateKey = null);
 	}
 }

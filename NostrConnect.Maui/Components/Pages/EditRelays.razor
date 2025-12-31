@@ -1,0 +1,288 @@
+@page "/edit-relays"
+@using BlazeJump.Tools.Models
+@using NostrConnect.Maui.Services
+@using BlazeJump.Tools.Services.Connections
+@using BlazeJump.Tools.Services.Logging
+@using BlazeJump.Tools.Services.Persistence
+@inject INostrDataService DataService
+@inject IRelayManager RelayManager
+@inject ILoggingService LoggingService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Relays</PageTitle>
+
+<div class="page">
+    <div class="content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3><i class="bi bi-broadcast"></i> Manage Relays</h3>
+            <button class="btn btn-secondary btn-sm" @onclick="GoBack">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </div>
+
+        <!-- Add New Relay -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add New Relay</h5>
+                <div class="input-group">
+                    <input type="text" class="form-control" @bind="_newRelayUrl" placeholder="wss://relay.example.com"
+                        @onkeypress="HandleKeyPress" />
+                    <button class="btn btn-primary" @onclick="AddRelay" disabled="@_isAdding">
+                        @if (_isAdding)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-plus-circle me-1"></i>
+                        }
+                        Add
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(_addMessage))
+                {
+                    <div class="alert @(_addError ? "alert-danger" : "alert-success") mt-2 mb-0" role="alert">
+                        @_addMessage
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Relay List -->
+        @if (_isLoading)
+        {
+            <div class="text-center p-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading relays...</p>
+            </div>
+        }
+        else if (_relays.Any())
+        {
+            <div class="list-group">
+                @foreach (var relay in _relays)
+                {
+                    var isConnected = RelayManager.RelayConnections.TryGetValue(relay.Url, out var connection) &&
+                    connection.IsOpen;
+
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 d-flex align-items-center">
+                                    <span class="badge @(isConnected ? "bg-success" : "bg-secondary") me-2">
+                                        @(isConnected ? "Connected" : "Disconnected")
+                                    </span>
+                                    @relay.Url
+                                </h6>
+                                <small class="text-muted">
+                                    Added: @relay.DateAdded.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                                    @if (relay.LastConnected.HasValue)
+                                    {
+                                        <span> | Last connected: @relay.LastConnected.Value.ToLocalTime().ToString("MMM dd, yyyy                                HH:mm")</span>
+                                    }
+                                </small>
+                            </div>
+                            <button class="btn btn-danger btn-sm" @onclick="() => DeleteRelay(relay)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="read-@relay.Id" checked="@relay.IsReadEnabled"
+                                @onchange="(e) => UpdateRelayRead(relay, e)" />
+                            <label class="form-check-label" for="read-@relay.Id">
+                                <i class="bi bi-download"></i> Read
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="write-@relay.Id" checked="@relay.IsWriteEnabled"
+                                @onchange="(e) => UpdateRelayWrite(relay, e)" />
+                            <label class="form-check-label" for="write-@relay.Id">
+                                <i class="bi bi-upload"></i> Write
+                            </label>
+                        </div>
+
+                        <div class="mt-2">
+                            @if (isConnected)
+                            {
+                                <button class="btn btn-warning btn-sm" @onclick="() => DisconnectRelay(relay)">
+                                    <i class="bi bi-plug"></i> Disconnect
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-success btn-sm" @onclick="() => ConnectRelay(relay)">
+                                    <i class="bi bi-plug-fill"></i> Connect
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle"></i> No relays configured. Add one above to get started.
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<RelayInfo> _relays = new();
+    private string _newRelayUrl = string.Empty;
+    private bool _isLoading = true;
+    private bool _isAdding = false;
+    private string _addMessage = string.Empty;
+    private bool _addError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRelays();
+        _isLoading = false;
+    }
+
+    private async Task LoadRelays()
+    {
+        try
+        {
+            _relays = await DataService.GetAllRelaysAsync();
+
+            // Sync with RelayManager - add any relays from DB that aren't in the manager
+            foreach (var relay in _relays.Where(r => r.IsReadEnabled || r.IsWriteEnabled))
+            {
+                RelayManager.TryAddUri(relay.Url);
+            }
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log($"Error loading relays: {ex.Message}");
+        }
+    }
+
+    private async Task AddRelay()
+    {
+        if (string.IsNullOrWhiteSpace(_newRelayUrl))
+        {
+            _addMessage = "Please enter a relay URL.";
+            _addError = true;
+            return;
+        }
+
+        if (!_newRelayUrl.StartsWith("wss://") && !_newRelayUrl.StartsWith("ws://"))
+        {
+            _addMessage = "Relay URL must start with wss:// or ws://";
+            _addError = true;
+            return;
+        }
+
+        _isAdding = true;
+        _addMessage = string.Empty;
+        _addError = false;
+
+        try
+        {
+            var relay = new RelayInfo
+            {
+                Url = _newRelayUrl,
+                IsReadEnabled = true,
+                IsWriteEnabled = true
+            };
+
+            await DataService.AddRelayAsync(relay);
+            RelayManager.TryAddUri(relay.Url);
+
+            LoggingService.Log($"Added relay: {relay.Url}");
+
+            _addMessage = "Relay added successfully!";
+            _addError = false;
+            _newRelayUrl = string.Empty;
+
+            await LoadRelays();
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log($"Error adding relay: {ex.Message}");
+            _addMessage = $"Failed to add relay: {ex.Message}";
+            _addError = true;
+        }
+        finally
+        {
+            _isAdding = false;
+        }
+    }
+
+    private async Task DeleteRelay(RelayInfo relay)
+    {
+        try
+        {
+            await RelayManager.CloseConnection(relay.Url);
+            await DataService.DeleteRelayAsync(relay.Id);
+
+            LoggingService.Log($"Deleted relay: {relay.Url}");
+
+            await LoadRelays();
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log($"Error deleting relay: {ex.Message}");
+        }
+    }
+
+    private async Task UpdateRelayRead(RelayInfo relay, ChangeEventArgs e)
+    {
+        relay.IsReadEnabled = (bool)(e.Value ?? false);
+        await DataService.UpdateRelayAsync(relay);
+    }
+
+    private async Task UpdateRelayWrite(RelayInfo relay, ChangeEventArgs e)
+    {
+        relay.IsWriteEnabled = (bool)(e.Value ?? false);
+        await DataService.UpdateRelayAsync(relay);
+    }
+
+    private async Task ConnectRelay(RelayInfo relay)
+    {
+        try
+        {
+            await RelayManager.OpenConnection(relay.Url);
+            relay.LastConnected = DateTime.UtcNow;
+            await DataService.UpdateRelayAsync(relay);
+            LoggingService.Log($"Connected to relay: {relay.Url}");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log($"Error connecting to relay: {ex.Message}");
+        }
+    }
+
+    private async Task DisconnectRelay(RelayInfo relay)
+    {
+        try
+        {
+            await RelayManager.CloseConnection(relay.Url);
+            LoggingService.Log($"Disconnected from relay: {relay.Url}");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            LoggingService.Log($"Error disconnecting from relay: {ex.Message}");
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AddRelay();
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

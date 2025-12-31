@@ -39,6 +39,10 @@ namespace BlazeJump.Tools.Helpers
 		/// <returns>A Bech32 encoded string.</returns>
 		public static string HexToBech32(string hexString, Bech32PrefixEnum bechLabel)
 		{
+			if (string.IsNullOrWhiteSpace(hexString))
+			{
+				return string.Empty;
+			}
 			var bytes = HexStringToByteArray(hexString);
 			return Bech32Encoder.Encode(bechLabel.ToString(), bytes);
 		}

@@ -1,265 +1,226 @@
 ﻿using BlazeJump.Tools.Models.Crypto;
 using BlazeJump.Helpers;
-using Microsoft.JSInterop;
-using NBitcoin.Secp256k1;
-using System.Diagnostics.CodeAnalysis;
-using System.Text;
+using System.Text.Json;
+using BlazeJump.Tools.Helpers;
 
 namespace BlazeJump.Tools.Services.Crypto
 {
 	/// <summary>
-	/// Implements cryptographic operations for Nostr protocol using Secp256k1 and AES encryption.
+	/// Implements cryptographic operations for Nostr protocol using Secp256k1 and ChaCha20 encryption.
+	/// Uses BouncyCastle for all cryptographic operations.
 	/// </summary>
-	public partial class CryptoService : ICryptoService
+	public abstract class CryptoService : ICryptoService
 	{
 		/// <summary>
-		/// Gets the ethereal public key used for temporary encryption.
+		/// Generates a new cryptographic key pair for Nostr protocol.
 		/// </summary>
-		public ECPubKey? EtherealPublicKey => _etherealKeyPair?.PublicKey;
-
-		/// <summary>
-		/// Gets the permanent public key used for persistent identity.
-		/// </summary>
-		public ECPubKey? PermanentPublicKey => _permanentKeyPair?.PublicKey;
-
-		/// <summary>
-		/// Gets the permanent public key as a hex string.
-		/// </summary>
-		public string? PermanentPublicKeyHex => _permanentKeyPair?.PublicKey.ToXOnlyPubKey().ToBytes() != null 
-			? Convert.ToHexString(_permanentKeyPair.PublicKey.ToXOnlyPubKey().ToBytes()).ToLower() 
-			: null;
-
-		/// <summary>
-		/// Gets or sets the ethereal key pair.
-		/// </summary>
-		protected Secp256k1KeyPair? _etherealKeyPair { get; set; }
-
-		/// <summary>
-		/// Gets or sets the permanent key pair.
-		/// </summary>
-		protected Secp256k1KeyPair? _permanentKeyPair { get; set; }
-
-		private readonly IBrowserCrypto? _browserCrypto;
-
-		/// <summary>
-		/// Initializes a new instance of the <see cref="CryptoService"/> class.
-		/// </summary>
-		/// <param name="browserCrypto">The browser crypto service for AES operations.</param>
-		public CryptoService(IBrowserCrypto? browserCrypto = null)
+		/// <returns>The generated public key.</returns>
+		public async Task<string> GenerateKeyPair(string? privateKey = null)
 		{
-			_browserCrypto = browserCrypto;
+			return (await GenerateSecp256k1KeyPair(privateKey)).PublicKey;
 		}
 
 		/// <summary>
-		/// Creates a new ethereal key pair for temporary encryption.
+		/// Gets existing Secp256k1 private key from localstorage.
 		/// </summary>
-		public void CreateEtherealKeyPair()
+		/// <returns>Existing Secp256k1 private key</returns>
+		protected virtual async Task<string?> GetPrivateKey(string pubkey)
 		{
-			_etherealKeyPair = GetNewSecp256k1KeyPair();
-		}
-
-		/// <summary>
-		/// Creates or loads a permanent key pair for persistent identity.
-		/// </summary>
-		/// <returns>A task representing the asynchronous operation.</returns>
-		public virtual async Task CreateOrLoadPermanentKeyPair()
-		{
-			// Try to load existing key pair first
-			bool loaded = await LoadPermanentKeyPair();
-			
-			// If no key pair exists, create a new one
-			if (!loaded)
-			{
-				_permanentKeyPair = GetNewSecp256k1KeyPair();
-				await SavePermanentKeyPair();
-			}
-		}
-
-		/// <summary>
-		/// Saves the permanent key pair to secure storage.
-		/// Override this method in platform-specific implementations.
-		/// </summary>
-		/// <returns>A task representing the asynchronous operation.</returns>
-		public virtual Task SavePermanentKeyPair()
-		{
-			// Base implementation does nothing (for web apps that don't persist)
-			// Override in MAUI/platform-specific implementations
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Loads the permanent key pair from secure storage.
-		/// Override this method in platform-specific implementations.
-		/// </summary>
-		/// <returns>True if a key pair was loaded; otherwise, false.</returns>
-		public virtual Task<bool> LoadPermanentKeyPair()
-		{
-			// Base implementation returns false (for web apps that don't persist)
-			// Override in MAUI/platform-specific implementations
-			return Task.FromResult(false);
-		}
-
-		/// <summary>
-		/// Deletes the permanent key pair from secure storage.
-		/// Override this method in platform-specific implementations.
-		/// </summary>
-		/// <returns>A task representing the asynchronous operation.</returns>
-		public virtual Task DeletePermanentKeyPair()
-		{
-			_permanentKeyPair = null;
-			// Override in MAUI/platform-specific implementations to delete from storage
-			return Task.CompletedTask;
+			return default;
 		}
 
 		/// <summary>
 		/// Generates a new Secp256k1 key pair.
 		/// </summary>
-		/// <returns>A new Secp256k1 key pair.</returns>
-		public Secp256k1KeyPair GetNewSecp256k1KeyPair()
+		protected virtual async Task<Secp256k1KeyPair> GenerateSecp256k1KeyPair(string? privateKey = null)
 		{
-			Random rand = new Random();
-			byte[] privateKeyGen = new byte[32];
-			rand.NextBytes(privateKeyGen);
-			var privateKey = ECPrivKey.Create(privateKeyGen);
-			var publicKey = privateKey.CreatePubKey();
-			return new Secp256k1KeyPair(privateKey, publicKey);
-		}
-
-		/// <summary>
-		/// Encrypts plain text using AES encryption with the provided public key.
-		/// </summary>
-		/// <param name="plainText">The text to encrypt.</param>
-		/// <param name="theirPublicKey">The recipient's public key.</param>
-		/// <param name="ivOverride">Optional initialization vector override.</param>
-		/// <param name="ethereal">Whether to use the ethereal key pair.</param>
-		/// <returns>The encrypted cipher text and IV.</returns>
-		public virtual async Task<CipherIv> AesEncrypt(string plainText, string theirPublicKey, string? ivOverride = null, bool ethereal = true)
-		{
-			byte[] sharedPoint = await GetSharedSecret(theirPublicKey, ethereal);
-			byte[] iv = new byte[16];
-			if (ivOverride != null)
+			byte[] privateKeyBytes = default!;
+			if (!string.IsNullOrEmpty(privateKey))
 			{
-				iv = Convert.FromBase64String(ivOverride);
+				if (privateKey.ToLower().StartsWith(Enums.Bech32PrefixEnum.nsec.ToString()))
+				{
+					privateKey = GeneralHelpers.Bech32ToHex(privateKey, Enums.Bech32PrefixEnum.nsec);
+				}
+
+				privateKeyBytes = Convert.FromHexString(privateKey);
+
+				if (!Secp256k1Crypto.IsValidPrivateKey(privateKeyBytes))
+					throw new ArgumentException("Invalid private key");
 			}
 			else
 			{
-				Random rand = new Random();
-				rand.NextBytes(iv);
+				privateKeyBytes = Secp256k1Crypto.GeneratePrivateKey();
 			}
-			var ivString = Convert.ToBase64String(iv);
-			var paddedTextBytes = Encoding.UTF8.GetBytes(plainText).Pad();
-			var encrypted = await _browserCrypto!.InvokeBrowserCrypto("aesEncrypt", paddedTextBytes, sharedPoint, iv);
-			return new CipherIv(encrypted.ToString(), ivString);
-		}
 
-		/// <summary>
-		/// Decrypts base64 cipher text using AES decryption.
-		/// </summary>
-		/// <param name="base64CipherText">The base64-encoded cipher text.</param>
-		/// <param name="theirPublicKey">The sender's public key.</param>
-		/// <param name="ivString">The initialization vector.</param>
-		/// <param name="ethereal">Whether to use the ethereal key pair.</param>
-		/// <returns>The decrypted plain text.</returns>
-		public virtual async Task<string> AesDecrypt(string base64CipherText, string theirPublicKey, string ivString, bool ethereal = true)
-		{
-			byte[] sharedPoint = await GetSharedSecret(theirPublicKey, ethereal);
-			var sharedPointString = Convert.ToBase64String(sharedPoint);
-			var decrypted = await _browserCrypto!.InvokeBrowserCrypto("aesDecrypt", base64CipherText, sharedPointString, ivString);
-			return decrypted;
+			var publicKeyBytes = Secp256k1Crypto.GetXOnlyPublicKey(privateKeyBytes);
+
+			var privateKeyString = Convert.ToHexString(privateKeyBytes).ToLower();
+			var publicKeyString = Convert.ToHexString(publicKeyBytes).ToLower();
+
+			return new Secp256k1KeyPair(privateKeyString, publicKeyString);
 		}
 
 		/// <summary>
 		/// Gets the shared secret for ECDH key exchange.
+		/// Uses BouncyCastle implementation.
 		/// </summary>
-		/// <param name="theirPublicKey">The other party's public key.</param>
-		/// <param name="ethereal">Whether to use the ethereal key pair.</param>
-		/// <returns>The shared secret bytes.</returns>
-		protected async Task<byte[]> GetSharedSecret(string theirPublicKey, bool ethereal)
+		/// <param name="theirPublicKey">The other party's public key (hex string).</param>
+		/// <param name="ourPublicKey">Our active public key for lookup of private key (hex string).</param>
+		/// <returns>The shared secret bytes (32-byte x-coordinate).</returns>
+		protected async Task<byte[]> GetSharedSecret(string theirPublicKey, string ourPublicKey)
 		{
 			var theirPublicKeyBytes = Convert.FromHexString(theirPublicKey);
-			var theirPubKey = ECPubKey.Create(theirPublicKeyBytes);
-			var ourPrivKey = await GetPrivateKey(ethereal);
-			return theirPubKey.GetSharedPubkey(ourPrivKey).ToBytes()[1..];
+
+			// Handle 32-byte x-only public keys (Nostr format)
+			if (theirPublicKeyBytes.Length == 32)
+			{
+				// Try with 0x02 prefix (even y-coordinate)
+				var compressedBytes = new byte[33];
+				compressedBytes[0] = 0x02;
+				Array.Copy(theirPublicKeyBytes, 0, compressedBytes, 1, 32);
+
+				if (!Secp256k1Crypto.IsValidPublicKey(compressedBytes))
+				{
+					// Try with 0x03 prefix (odd y-coordinate)
+					compressedBytes[0] = 0x03;
+				}
+				theirPublicKeyBytes = compressedBytes;
+			}
+			else if (theirPublicKeyBytes.Length != 33 && theirPublicKeyBytes.Length != 65)
+			{
+				throw new ArgumentException($"Invalid pubkey length: {theirPublicKeyBytes.Length}. Expected 32, 33, or 65 bytes.");
+			}
+
+			var privateKey = await GetPrivateKey(ourPublicKey);
+			if (string.IsNullOrEmpty(privateKey))
+			{
+				throw new Exception("Private key does not exist in storage!");
+			}
+			var privateKeyBytes = Convert.FromHexString(privateKey);
+			var sharedSecretXOnly = Secp256k1Crypto.ComputeSharedSecretXOnly(privateKeyBytes, theirPublicKeyBytes);
+			return sharedSecretXOnly;
+			throw new Exception("Active key pair not found or private key is null.");
 		}
 
 		/// <summary>
-		/// Gets the private key for cryptographic operations.
+		/// Encrypts plain text using NIP-44 encryption with ChaCha20.
 		/// </summary>
-		/// <param name="ethereal">Whether to use the ethereal key pair.</param>
-		/// <returns>The private key.</returns>
-		protected virtual Task<ECPrivKey> GetPrivateKey(bool ethereal)
+		public virtual async Task<string> Nip44Encrypt(string plainText, string theirPublicKey, string ourPublicKey)
 		{
-			if (ethereal)
+			try
 			{
-				if (_etherealKeyPair == null)
-					throw new InvalidOperationException("Ethereal key pair not initialized. Call CreateEtherealKeyPair() first.");
-				return Task.FromResult(_etherealKeyPair.PrivateKey);
+				byte[] sharedSecret = await GetSharedSecret(theirPublicKey, ourPublicKey);
+				byte[] conversationKey = Nip44.DeriveConversationKey(sharedSecret);
+				return Nip44.Encrypt(plainText, conversationKey);
 			}
-			else
+			catch (Exception ex)
 			{
-				if (_permanentKeyPair == null)
-					throw new InvalidOperationException("Permanent key pair not initialized. Call CreateOrLoadPermanentKeyPair() first.");
-				return Task.FromResult(_permanentKeyPair.PrivateKey);
+				throw new Exception($"Nip44Encrypt failed for pubkey {theirPublicKey} with user pubkey {ourPublicKey}: {ex.Message}", ex);
 			}
 		}
 
 		/// <summary>
-		/// Signs a message using Schnorr signature.
+		/// Decrypts NIP-44 encrypted text using ChaCha20.
+		/// </summary>
+		public virtual async Task<string> Nip44Decrypt(string base64Payload, string theirPublicKey, string ourPublicKey)
+		{
+			try
+			{
+				byte[] sharedSecret = await GetSharedSecret(theirPublicKey, ourPublicKey);
+				byte[] conversationKey = Nip44.DeriveConversationKey(sharedSecret);
+				return Nip44.Decrypt(base64Payload, conversationKey);
+			}
+			catch (Exception ex)
+			{
+				throw new Exception($"Nip44Decrypt failed for pubkey {theirPublicKey}: {ex.Message}", ex);
+			}
+		}
+
+		public virtual async Task<string> Nip04Encrypt(string plainText, string theirPublicKey, string ourPublicKey)
+		{
+			try
+			{
+				byte[] sharedSecret = await GetSharedSecret(theirPublicKey, ourPublicKey);
+				return Nip04.Encrypt(plainText, sharedSecret);
+			}
+			catch (Exception ex)
+			{
+				throw new Exception($"Nip04Encrypt failed: {ex.Message}", ex);
+			}
+		}
+
+		public virtual async Task<string> Nip04Decrypt(string payload, string theirPublicKey, string ourPublicKey)
+		{
+			try
+			{
+				byte[] sharedSecret = await GetSharedSecret(theirPublicKey, ourPublicKey);
+				return Nip04.Decrypt(payload, sharedSecret);
+			}
+			catch (Exception ex)
+			{
+				throw new Exception($"Nip04Decrypt failed: {ex.Message}", ex);
+			}
+		}
+
+		/// <summary>
+		/// Signs a message using Schnorr signature (BIP-340).
 		/// </summary>
 		/// <param name="message">The message to sign.</param>
-		/// <param name="ethereal">Whether to use the ethereal key pair.</param>
+		/// <param name="ourPublicKey">The pubkey corresponding to the private key we are using to sign.</param>
 		/// <returns>The signature as a hex string.</returns>
-		public async Task<string> Sign(string message, bool ethereal = true)
+		public async Task<string> Sign(string message, string ourPublicKey)
 		{
-			var privateKey = await GetPrivateKey(ethereal);
+			var privateKey = await GetPrivateKey(ourPublicKey);
+			if (string.IsNullOrEmpty(privateKey))
+			{
+				throw new Exception("Private key does not exist in storage!");
+			}
 			var messageHashBytes = message.SHA256Hash();
-			return Convert.ToHexString(privateKey.SignBIP340(messageHashBytes).ToBytes()).ToLower();
+			var privateKeyBytes = Convert.FromHexString(privateKey);
+			var signature = Secp256k1Crypto.SignSchnorr(messageHashBytes, privateKeyBytes);
+			return Convert.ToHexString(signature).ToLower();
+			throw new Exception("Active key pair not found or private key is null.");
 		}
 
 		/// <summary>
-		/// Verifies a Schnorr signature.
+		/// Verifies a Schnorr signature (BIP-340).
 		/// </summary>
-		/// <param name="signature">The signature to verify.</param>
+		/// <param name="signature">The signature to verify (hex string).</param>
 		/// <param name="message">The signed message.</param>
-		/// <param name="publicKey">The signer's public key.</param>
+		/// <param name="publicKey">The signer's public key (hex string, 32-byte x-only).</param>
 		/// <returns>True if the signature is valid; otherwise, false.</returns>
 		public bool Verify(string signature, string message, string publicKey)
 		{
-			var messageHashBytes = message.SHA256Hash();
-			var signatureBytes = Convert.FromHexString(signature);
-			var publicKeyBytes = Convert.FromHexString(publicKey);
-			var pubKey = ECXOnlyPubKey.Create(publicKeyBytes);
-			if (SecpSchnorrSignature.TryCreate(signatureBytes, out var schnorrSignature))
+			try
 			{
-				return pubKey.SigVerifyBIP340(schnorrSignature, messageHashBytes);
+				var messageHashBytes = message.SHA256Hash();
+				var signatureBytes = Convert.FromHexString(signature);
+				var publicKeyBytes = Convert.FromHexString(publicKey);
+
+				return Secp256k1Crypto.VerifySchnorr(messageHashBytes, signatureBytes, publicKeyBytes);
 			}
-			return false;
-		}
-	}
-
-	/// <summary>
-	/// Represents encrypted cipher text with its initialization vector.
-	/// </summary>
-	public class CipherIv
-	{
-		/// <summary>
-		/// Initializes a new instance of the <see cref="CipherIv"/> class.
-		/// </summary>
-		/// <param name="cipherText">The encrypted cipher text.</param>
-		/// <param name="iv">The initialization vector.</param>
-		public CipherIv(string cipherText, string iv) {
-			CipherText = cipherText;
-			Iv = iv;
+			catch
+			{
+				return false;
+			}
 		}
 
-		/// <summary>
-		/// Gets or sets the encrypted cipher text.
-		/// </summary>
-		public string CipherText { get; set; }
+        /// <summary>
+        /// Gets the existing public key from persistent storage.
+        /// Base implementation returns null (no storage).
+        /// </summary>
+        public virtual Task<string?> GetExistingPublicKey()
+        {
+            return Task.FromResult<string?>(null);
+        }
 
-		/// <summary>
-		/// Gets or sets the initialization vector.
-		/// </summary>
-		public string Iv { get; set; }
+        /// <summary>
+        /// Removes the stored key pair.
+        /// Base implementation does nothing.
+        /// </summary>
+        public virtual Task RemoveKeyPair()
+        {
+            return Task.CompletedTask;
+        }
 	}
 }

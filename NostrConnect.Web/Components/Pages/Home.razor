@@ -1,38 +1,456 @@
 ﻿@page "/"
-@using NostrConnect.Web.Components
-@rendermode InteractiveServer
+@using NostrConnect.Web.Services.Identity
+@using BlazeJump.Tools.Services.Connections
+@using BlazeJump.Tools.Services.Crypto
+@using BlazeJump.Tools.Services.Identity
+@using BlazeJump.Tools.Models
+@using BlazeJump.Tools.Models.NostrConnect
+@using BlazeJump.Tools.Builders
+@using BlazeJump.Tools.Enums
+@using BlazeJump.Tools.Helpers
+@using MudBlazor
+@inject IRelayManager RelayManager
+@inject ICryptoService CryptoService
+@inject IWebIdentityService IdentityService
+@inject ILoggingService LoggingService
+@implements IDisposable
 
-<PageTitle>Nostr Connect - Web</PageTitle>
+<PageTitle>NostrConnect - QR Login</PageTitle>
 
-<div class="container mt-4">
-    <h1>Nostr Connect - Web Browser</h1>
+@if (IdentityService.ActiveUserProfile != null)
+{
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+        @foreach (var userProfile in IdentityService.UserProfiles.Values)
+        {
+            var userTabId = $"user-{userProfile.PublicKey.Substring(0, 8)}";
+            var isActiveUser = userProfile.PublicKey == IdentityService.ActiveUserProfile.PublicKey;
+            
+            <MudTabPanel Text="@(userProfile.Name ?? userProfile.PublicKey.Substring(0, 8))" 
+                         Icon="@Icons.Material.Filled.Person"
+                         BadgeData="@(isActiveUser ? "Active" : null)"
+                         BadgeColor="Color.Success">
+                
+                @if (userProfile.Sessions.Any())
+                {
+                    <MudTabs Elevation="1" Rounded="true" PanelClass="pa-4">
+                        @for (int i = 0; i < userProfile.Sessions.Count; i++)
+                        {
+                            var session = userProfile.Sessions[i];
+                            var sessionIcon = session.Status switch
+                            {
+                                SessionStatusEnum.Connected => Icons.Material.Filled.CheckCircle,
+                                SessionStatusEnum.AwaitingScan => Icons.Material.Filled.QrCode,
+                                SessionStatusEnum.ResponseSent => Icons.Material.Filled.HourglassBottom,
+                                SessionStatusEnum.Idle => Icons.Material.Filled.Circle,
+                                _ => Icons.Material.Filled.Circle
+                            };
+                            var sessionColor = session.Status switch
+                            {
+                                SessionStatusEnum.Connected => Color.Success,
+                                SessionStatusEnum.AwaitingScan => Color.Info,
+                                SessionStatusEnum.ResponseSent => Color.Warning,
+                                _ => Color.Default
+                            };
+                            
+                            <MudTabPanel Text="@($"Session {i + 1}")" 
+                                       Icon="@sessionIcon"
+                                       BadgeData="@(session.IsConnected ? "Connected" : null)"
+                                       BadgeColor="@sessionColor">
+                                
+                                @if (!session.IsConnected)
+                                {
+                                    <MudGrid>
+                                        <MudItem xs="12" md="6">
+                                            <MudPaper Class="pa-4" Elevation="0">
+                                                <MudText Typo="Typo.h5" GutterBottom="true">
+                                                    Session Status: @session.Status
+                                                </MudText>
+                                                <MudText Typo="Typo.body2" Class="mb-2">
+                                                    <strong>Session ID:</strong> <code>@session.SessionId</code>
+                                                </MudText>
+                                                <MudText Typo="Typo.body2" Class="mb-2">
+                                                    <strong>Our Pubkey:</strong> <code>@session.OurPubkey.Substring(0, 16)...</code>
+                                                </MudText>
+                                                @if (!string.IsNullOrEmpty(session.TheirPubkey))
+                                                {
+                                                    <MudText Typo="Typo.body2">
+                                                        <strong>Their Pubkey:</strong> <code>@session.TheirPubkey.Substring(0, 16)...</code>
+                                                    </MudText>
+                                                }
+                                            </MudPaper>
+                                        </MudItem>
+                                        <MudItem xs="12" md="6">
+                                            <MudPaper Class="pa-4 d-flex flex-column align-center" Elevation="0">
+                                                <MudText Typo="Typo.h6" GutterBottom="true">
+                                                    Scan this QR code with your app
+                                                </MudText>
+                                                @if (_sessionQRCodes.TryGetValue(session.SessionId, out var qrCodeUrl))
+                                                {
+                                                    <MudImage Src="@qrCodeUrl" Alt="QR Code" Width="300" Class="rounded" />
+                                                }
+                                            </MudPaper>
+                                        </MudItem>
+                                    </MudGrid>
+                                }
+                                else
+                                {
+                                    <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="mb-4">
+                                        <MudText Typo="Typo.h6" Class="mb-2">
+                                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" /> @session.Status
+                                        </MudText>
+                                        <MudText Typo="Typo.body2">
+                                            <strong>User Public Key:</strong> <code>@session.TheirPubkey</code>
+                                        </MudText>
+                                        <MudText Typo="Typo.body2">
+                                            <strong>Connected At:</strong> @session.ConnectedAt?.ToString("yyyy-MM-dd HH:mm:ss")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2">
+                                            <strong>Last Active:</strong> @session.LastActive?.ToString("yyyy-MM-dd HH:mm:ss")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Class="mt-2">
+                                            Your mobile device is now connected and ready to sign events.
+                                        </MudText>
+                                    </MudAlert>
+                                    
+                                    <MudStack Row="true" Spacing="2" Class="mb-4">
+                                        <MudButton Variant="Variant.Filled" 
+                                                  Color="Color.Primary" 
+                                                  StartIcon="@Icons.Material.Filled.Send"
+                                                  OnClick="@(() => SendPing(session))"
+                                                  Disabled="@(_sessionPingingState.GetValueOrDefault(session.SessionId, false))">
+                                            @if (_sessionPingingState.GetValueOrDefault(session.SessionId, false))
+                                            {
+                                                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                                                <text>Pinging...</text>
+                                            }
+                                            else
+                                            {
+                                                <text>Ping Device</text>
+                                            }
+                                        </MudButton>
+                                        <MudButton Variant="Variant.Filled" 
+                                                  Color="Color.Secondary" 
+                                                  StartIcon="@Icons.Material.Filled.Close"
+                                                  OnClick="@(async () => await SendDisconnect(session))"
+                                                  Disabled="@(_sessionDisconnectingState.GetValueOrDefault(session.SessionId, false))">
+                                            @if (_sessionDisconnectingState.GetValueOrDefault(session.SessionId, false))
+                                            {
+                                                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                                                <text>Disconnecting...</text>
+                                            }
+                                            else
+                                            {
+                                                <text>Disconnect</text>
+                                            }
+                                        </MudButton>
+                                    </MudStack>
+                                    
+                                    @if (!string.IsNullOrEmpty(_sessionPingMessages.GetValueOrDefault(session.SessionId, string.Empty)))
+                                    {
+                                        <MudAlert Severity="@(_sessionPingSuccess.GetValueOrDefault(session.SessionId, false) ? Severity.Success : Severity.Error)" 
+                                                 Variant="Variant.Outlined" 
+                                                 Class="mb-4">
+                                            @_sessionPingMessages[session.SessionId]
+                                        </MudAlert>
+                                    }
+                                    
+                                    @if (!string.IsNullOrEmpty(session.OurPubkey))
+                                    {
+                                        <MudCard>
+                                            <MudCardContent>
+                                                <MudText Typo="Typo.h6" Class="mb-3">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Key" /> Web Session Identity
+                                                </MudText>
+                                                <MudText Typo="Typo.caption" Class="mb-1">
+                                                    <strong>Public Key (Bech32):</strong>
+                                                </MudText>
+                                                <MudPaper Class="pa-2 mb-3" Elevation="0">
+                                                    <code style="word-break: break-all; font-size: 0.85rem;">
+                                                        @GeneralHelpers.HexToBech32(session.OurPubkey, Bech32PrefixEnum.npub)
+                                                    </code>
+                                                </MudPaper>
+                                                <MudText Typo="Typo.caption" Class="mb-1">
+                                                    <strong>Public Key (Hex):</strong>
+                                                </MudText>
+                                                <MudPaper Class="pa-2" Elevation="0">
+                                                    <code style="word-break: break-all; font-size: 0.75rem; opacity: 0.7;">
+                                                        @session.OurPubkey
+                                                    </code>
+                                                </MudPaper>
+                                            </MudCardContent>
+                                        </MudCard>
+                                    }
+                                }
+                            </MudTabPanel>
+                        }
+                    </MudTabs>
+                    
+                    <MudButton Variant="Variant.Outlined" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Add"
+                              OnClick="@(() => AddNewSession(userProfile))"
+                              Class="mt-4">
+                        New Session
+                    </MudButton>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info">
+                        <MudText Typo="Typo.body1" Class="mb-2">
+                            No sessions available for this user profile.
+                        </MudText>
+                        <MudButton Variant="Variant.Filled" 
+                                  Color="Color.Primary" 
+                                  StartIcon="@Icons.Material.Filled.Add"
+                                  OnClick="@(() => AddNewSession(userProfile))">
+                            Create First Session
+                        </MudButton>
+                    </MudAlert>
+                }
+            </MudTabPanel>
+        }
+    </MudTabs>
     
-    <div class="alert alert-info">
-        <h4>Connect Your Mobile Device</h4>
-        <p>Scan the QR code below with your Nostr Connect mobile app to sign events securely from your phone.</p>
-    </div>
+    <MudButton Variant="Variant.Outlined" 
+              Color="Color.Primary" 
+              StartIcon="@Icons.Material.Filled.PersonAdd"
+              OnClick="@AddNewUserProfile"
+              Class="mt-4">
+        New Profile
+    </MudButton>
+    
+    <MudExpansionPanels Class="mt-5">
+        <MudExpansionPanel Text="System Logs" Icon="@Icons.Material.Filled.Article">
+            <MudCard>
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">System Logs</MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudButton Variant="Variant.Filled" 
+                                  Color="Color.Secondary" 
+                                  Size="Size.Small"
+                                  OnClick="@ClearLogs">
+                            Clear Logs
+                        </MudButton>
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudPaper Class="pa-2" Style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; background-color: #1e1e1e; color: #d4d4d4;">
+                        @if (_logs.Any())
+                        {
+                            @foreach (var log in _logs)
+                            {
+                                <div style="margin-bottom: 4px; white-space: pre-wrap; word-break: break-all;">@log</div>
+                            }
+                        }
+                        else
+                        {
+                            <MudText Color="Color.Secondary">No logs yet...</MudText>
+                        }
+                    </MudPaper>
+                </MudCardContent>
+            </MudCard>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+}
+else
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center justify-center" Style="min-height: 400px;">
+        <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        <MudText Typo="Typo.h6" Class="mt-4">Initializing user profile...</MudText>
+    </MudPaper>
+}
 
-    <QRConnect />
+@code {
+    private Dictionary<string, string> _sessionQRCodes = new();
+    private Dictionary<string, bool> _sessionPingingState = new();
+    private Dictionary<string, bool> _sessionDisconnectingState = new();
+    private Dictionary<string, string> _sessionPingMessages = new();
+    private Dictionary<string, bool> _sessionPingSuccess = new();
+    private Dictionary<string, TaskCompletionSource<string>> _sessionPingCompletionSources = new();
+    private List<string> _logs = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        IdentityService.NotifySessionStateChanged += OnSessionStatusChanged;
+        IdentityService.PingReceived += OnPingReceived;
+        _logs = LoggingService.GetLogs();
+        LoggingService.LogAdded += OnLogAdded;
+        
+        if(!RelayManager.Relays.Contains("wss://relay.damus.io"))
+            RelayManager.TryAddUri("wss://relay.damus.io");
+        
+        if (IdentityService.ActiveUserProfile == null)
+        {
+            await IdentityService.CreateUserProfile();
+        }
+        
+        if (IdentityService.ActiveUserProfile != null && !IdentityService.ActiveUserProfile.Sessions.Any())
+        {
+            await CreateSessionForProfile(IdentityService.ActiveUserProfile);
+        }
+        
+        StateHasChanged();
+    }
 
-    <div class="mt-5">
-        <h2>How it works</h2>
-        <ol>
-            <li>Install the Nostr Connect app on your Android device</li>
-            <li>Generate a permanent key pair in the app (stored securely on your device)</li>
-            <li>Scan the QR code on this page with the app</li>
-            <li>Your phone will become the signing device for this browser session</li>
-            <li>All private key operations happen on your phone - never on the web</li>
-        </ol>
-    </div>
+    private async void OnSessionStatusChanged(object? sender, NostrConnectSession session)
+    {
+        Console.WriteLine($"[QRConnect] Session {session.SessionId} status changed - IsConnected: {session.IsConnected}");
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    private void OnLogAdded(object? sender, string log)
+    {
+        _logs = LoggingService.GetLogs();
+        InvokeAsync(StateHasChanged);
+    }
 
-    <div class="mt-4">
-        <h3>Features</h3>
-        <ul>
-            <li>✓ Generate permanent keys on device</li>
-            <li>✓ Secure key storage using Android secure storage</li>
-            <li>✓ QR code connection between devices</li>
-            <li>✓ Ephemeral web keys (never stored)</li>
-            <li>✓ Phone acts as signing authority</li>
-        </ul>
-    </div>
-</div>
+    private void OnPingReceived(object? sender, NostrConnectResponse response)
+    {
+        Console.WriteLine($"[QRConnect] Pong received for request ID: {response.Id}");
+        
+        // Find the session by matching the response ID with pending requests
+        foreach (var kvp in _sessionPingCompletionSources)
+        {
+            var sessionId = kvp.Key;
+            var tcs = kvp.Value;
+            
+            if (!tcs.Task.IsCompleted)
+            {
+                tcs.TrySetResult(response.Result ?? "pong");
+                Console.WriteLine($"[QRConnect] Completed TaskCompletionSource for session {sessionId}");
+                break;
+            }
+        }
+        
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CreateSessionForProfile(UserProfile userProfile)
+    {
+        var connectionUrl = await IdentityService.CreateNewSession();
+        
+        var newSession = userProfile.Sessions.LastOrDefault();
+        if (newSession != null)
+        {
+            var qrCodeDataUrl = QRCodeHelpers.GenerateQRCode(connectionUrl);
+            _sessionQRCodes[newSession.SessionId] = qrCodeDataUrl;
+        }
+        
+        StateHasChanged();
+    }
+    
+    private async Task AddNewUserProfile()
+    {
+        await IdentityService.CreateUserProfile();
+        
+        if (IdentityService.ActiveUserProfile != null)
+        {
+            await CreateSessionForProfile(IdentityService.ActiveUserProfile);
+        }
+        
+        StateHasChanged();
+    }
+    
+    private async Task AddNewSession(UserProfile userProfile)
+    {
+        var previousActive = IdentityService.ActiveUserProfile;
+        IdentityService.ActiveUserProfile = userProfile;
+        
+        await CreateSessionForProfile(userProfile);
+        
+        if (previousActive != null && previousActive.PublicKey != userProfile.PublicKey)
+        {
+            IdentityService.ActiveUserProfile = previousActive;
+        }
+        
+        StateHasChanged();
+    }
+    
+    private async Task SendPing(NostrConnectSession session)
+    {
+        _sessionPingingState[session.SessionId] = true;
+        _sessionPingMessages[session.SessionId] = string.Empty;
+        StateHasChanged();
+        
+        try
+        {
+            Console.WriteLine($"[QRConnect] Sending ping to session {session.SessionId}...");
+            
+            var tcs = new TaskCompletionSource<string>();
+            _sessionPingCompletionSources[session.SessionId] = tcs;
+            
+            await IdentityService.SendPing(session);
+            
+            var timeoutTask = Task.Delay(5000);
+            var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+            
+            if (completedTask == timeoutTask)
+            {
+                _sessionPingSuccess[session.SessionId] = false;
+                _sessionPingMessages[session.SessionId] = $"✗ Ping timeout - no response from device";
+                Console.WriteLine($"[QRConnect] Ping timeout for session {session.SessionId}");
+            }
+            else
+            {
+                var result = await tcs.Task;
+                _sessionPingSuccess[session.SessionId] = true;
+                _sessionPingMessages[session.SessionId] = $"✓ Pong received: '{result}' at {DateTime.Now:HH:mm:ss}";
+                Console.WriteLine($"[QRConnect] Ping successful for session {session.SessionId}: {result}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _sessionPingSuccess[session.SessionId] = false;
+            _sessionPingMessages[session.SessionId] = $"✗ Ping failed: {ex.Message}";
+            Console.WriteLine($"[QRConnect] Ping failed for session {session.SessionId}: {ex.Message}");
+        }
+        finally
+        {
+            _sessionPingCompletionSources.Remove(session.SessionId);
+            _sessionPingingState[session.SessionId] = false;
+            StateHasChanged();
+            
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(5000);
+                await InvokeAsync(() =>
+                {
+                    _sessionPingMessages[session.SessionId] = string.Empty;
+                    StateHasChanged();
+                });
+            });
+        }
+    }
+    
+    private async Task SendDisconnect(NostrConnectSession session)
+    {
+        _sessionDisconnectingState[session.SessionId] = true;
+        StateHasChanged();
+        
+        try
+        {
+            await IdentityService.SendDisconnect(session);
+        }
+        finally
+        {
+            _sessionDisconnectingState[session.SessionId] = false;
+            StateHasChanged();
+        }
+    }
+    
+    private void ClearLogs()
+    {
+        LoggingService.Clear();
+        _logs.Clear();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        IdentityService.NotifySessionStateChanged -= OnSessionStatusChanged;
+        IdentityService.PingReceived -= OnPingReceived;
+        LoggingService.LogAdded -= OnLogAdded;
+    }
+}

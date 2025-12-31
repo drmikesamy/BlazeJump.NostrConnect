@@ -1,31 +1,35 @@
 {
   "format": 1,
   "restore": {
-    "/home/mike/Projects/SingleHealthRecord/NostrConnect.Maui/NostrConnect.Maui.csproj": {}
+    "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\NostrConnect.Maui\\NostrConnect.Maui.csproj": {}
   },
   "projects": {
-    "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/BlazeJump.Tools.csproj": {
+    "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\BlazeJump.Tools\\BlazeJump.Tools.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/BlazeJump.Tools.csproj",
+        "projectUniqueName": "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\BlazeJump.Tools\\BlazeJump.Tools.csproj",
         "projectName": "BlazeJump.Tools",
-        "projectPath": "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/BlazeJump.Tools.csproj",
-        "packagesPath": "/home/mike/.nuget/packages/",
-        "outputPath": "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/obj/",
+        "projectPath": "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\BlazeJump.Tools\\BlazeJump.Tools.csproj",
+        "packagesPath": "C:\\Users\\Me\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\BlazeJump.Tools\\obj\\",
         "projectStyle": "PackageReference",
         "crossTargeting": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/home/mike/Projects/SingleHealthRecord/nuget.config",
-          "/home/mike/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\Me\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net9.0",
           "net9.0-android"
         ],
         "sources": {
-          "/usr/lib/dotnet/library-packs": {},
-          "https://api.nuget.org/v3/index.json": {},
-          "https://nuget.pkg.github.com/Composed-Health/index.json": {}
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net9.0": {
@@ -47,7 +51,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.100"
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net9.0": {
@@ -57,64 +61,9 @@
               "target": "Package",
               "version": "[13.0.1, )"
             },
-            "Microsoft.AspNetCore.Components.Web": {
+            "BouncyCastle.Cryptography": {
               "target": "Package",
-              "version": "[9.0.0, )"
-            },
-            "Microsoft.Extensions.DependencyInjection.Abstractions": {
-              "target": "Package",
-              "version": "[9.0.0, )"
-            },
-            "Microsoft.Maui.Controls": {
-              "target": "Package",
-              "version": "[9.0.0, )"
-            },
-            "Microsoft.SourceLink.GitHub": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[8.0.0, )"
-            },
-            "NBitcoin.Secp256k1": {
-              "target": "Package",
-              "version": "[3.1.4, )"
-            },
-            "Nano.Bech32": {
-              "target": "Package",
-              "version": "[1.0.0, )"
-            },
-            "Newtonsoft.Json": {
-              "target": "Package",
-              "version": "[13.0.3, )"
-            },
-            "QRCoder": {
-              "target": "Package",
-              "version": "[1.6.0, )"
-            }
-          },
-          "imports": [
-            "net461",
-            "net462",
-            "net47",
-            "net471",
-            "net472",
-            "net48",
-            "net481"
-          ],
-          "assetTargetFallback": true,
-          "warn": true,
-          "frameworkReferences": {
-            "Microsoft.NETCore.App": {
-              "privateAssets": "all"
-            }
-          },
-          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
-        },
-        "net9.0-android35.0": {
-          "targetAlias": "net9.0-android",
-          "dependencies": {
-            "AutoMapper": {
-              "target": "Package",
-              "version": "[13.0.1, )"
+              "version": "[2.6.2, )"
             },
             "Microsoft.AspNetCore.Components.Web": {
               "target": "Package",
@@ -132,10 +81,6 @@
               "suppressParent": "All",
               "target": "Package",
               "version": "[8.0.0, )"
-            },
-            "NBitcoin.Secp256k1": {
-              "target": "Package",
-              "version": "[3.1.4, )"
             },
             "Nano.Bech32": {
               "target": "Package",
@@ -163,8 +108,93 @@
           "warn": true,
           "downloadDependencies": [
             {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.11, 9.0.11]"
+            },
+            {
               "name": "Microsoft.NETCore.App.Ref",
-              "version": "[9.0.10, 9.0.10]"
+              "version": "[9.0.11, 9.0.11]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.11, 9.0.11]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json"
+        },
+        "net9.0-android35.0": {
+          "targetAlias": "net9.0-android",
+          "dependencies": {
+            "AutoMapper": {
+              "target": "Package",
+              "version": "[13.0.1, )"
+            },
+            "BouncyCastle.Cryptography": {
+              "target": "Package",
+              "version": "[2.6.2, )"
+            },
+            "Microsoft.AspNetCore.Components.Web": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.DependencyInjection.Abstractions": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Maui.Controls": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.SourceLink.GitHub": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Nano.Bech32": {
+              "target": "Package",
+              "version": "[1.0.0, )"
+            },
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[13.0.3, )"
+            },
+            "QRCoder": {
+              "target": "Package",
+              "version": "[1.6.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.Android.Ref.35",
+              "version": "[35.0.105, 35.0.105]"
+            },
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.11, 9.0.11]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.11, 9.0.11]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.11, 9.0.11]"
             }
           ],
           "frameworkReferences": {
@@ -175,38 +205,42 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/home/mike/Projects/SingleHealthRecord/NostrConnect.Maui/NostrConnect.Maui.csproj": {
+    "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\NostrConnect.Maui\\NostrConnect.Maui.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/mike/Projects/SingleHealthRecord/NostrConnect.Maui/NostrConnect.Maui.csproj",
+        "projectUniqueName": "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\NostrConnect.Maui\\NostrConnect.Maui.csproj",
         "projectName": "NostrConnect.Maui",
-        "projectPath": "/home/mike/Projects/SingleHealthRecord/NostrConnect.Maui/NostrConnect.Maui.csproj",
-        "packagesPath": "/home/mike/.nuget/packages/",
-        "outputPath": "/home/mike/Projects/SingleHealthRecord/NostrConnect.Maui/obj/",
+        "projectPath": "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\NostrConnect.Maui\\NostrConnect.Maui.csproj",
+        "packagesPath": "C:\\Users\\Me\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\NostrConnect.Maui\\obj\\",
         "projectStyle": "PackageReference",
         "crossTargeting": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/home/mike/Projects/SingleHealthRecord/nuget.config",
-          "/home/mike/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\Me\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net9.0-android"
         ],
         "sources": {
-          "/usr/lib/dotnet/library-packs": {},
-          "https://api.nuget.org/v3/index.json": {},
-          "https://nuget.pkg.github.com/Composed-Health/index.json": {}
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net9.0-android35.0": {
             "targetAlias": "net9.0-android",
             "projectReferences": {
-              "/home/mike/Projects/SingleHealthRecord/NostrConnect.Shared/NostrConnect.Shared.csproj": {
-                "projectPath": "/home/mike/Projects/SingleHealthRecord/NostrConnect.Shared/NostrConnect.Shared.csproj"
+              "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\BlazeJump.Tools\\BlazeJump.Tools.csproj": {
+                "projectPath": "C:\\Users\\Me\\source\\repos\\drmikesamy\\SingleHealthRecord\\BlazeJump.Tools\\BlazeJump.Tools.csproj"
               }
             }
           }
@@ -221,7 +255,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.100"
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net9.0-android35.0": {
@@ -229,7 +263,17 @@
           "dependencies": {
             "Microsoft.AspNetCore.Components.WebView.Maui": {
               "target": "Package",
-              "version": "[9.0.111, )"
+              "version": "[9.0.120, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.Sqlite": {
+              "target": "Package",
+              "version": "[9.0.0, )"
             },
             "Microsoft.Extensions.Logging.Debug": {
               "target": "Package",
@@ -237,17 +281,25 @@
             },
             "Microsoft.Maui.Controls": {
               "target": "Package",
-              "version": "[9.0.111, )"
+              "version": "[9.0.120, )"
             },
             "Microsoft.NET.ILLink.Tasks": {
               "suppressParent": "All",
               "target": "Package",
-              "version": "[9.0.8, )",
+              "version": "[9.0.11, )",
               "autoReferenced": true
+            },
+            "MudBlazor": {
+              "target": "Package",
+              "version": "[8.15.0, )"
             },
             "QRCoder": {
               "target": "Package",
               "version": "[1.6.0, )"
+            },
+            "SQLitePCLRaw.bundle_green": {
+              "target": "Package",
+              "version": "[2.1.11, )"
             },
             "ZXing.Net.Maui": {
               "target": "Package",
@@ -256,6 +308,10 @@
             "ZXing.Net.Maui.Controls": {
               "target": "Package",
               "version": "[0.4.0, )"
+            },
+            "sqlite-net-pcl": {
+              "target": "Package",
+              "version": "[1.9.172, )"
             }
           },
           "imports": [
@@ -271,8 +327,16 @@
           "warn": true,
           "downloadDependencies": [
             {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[9.0.10, 9.0.10]"
+              "name": "Microsoft.Android.Ref.35",
+              "version": "[35.0.105, 35.0.105]"
+            },
+            {
+              "name": "Microsoft.Android.Runtime.35.android-arm64",
+              "version": "[35.0.105, 35.0.105]"
+            },
+            {
+              "name": "Microsoft.Android.Runtime.35.android-x64",
+              "version": "[35.0.105, 35.0.105]"
             }
           ],
           "frameworkReferences": {
@@ -283,7 +347,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json"
         }
       },
       "runtimes": {
@@ -292,123 +356,6 @@
         },
         "android-x64": {
           "#import": []
-        }
-      }
-    },
-    "/home/mike/Projects/SingleHealthRecord/NostrConnect.Shared/NostrConnect.Shared.csproj": {
-      "version": "1.0.0",
-      "restore": {
-        "projectUniqueName": "/home/mike/Projects/SingleHealthRecord/NostrConnect.Shared/NostrConnect.Shared.csproj",
-        "projectName": "NostrConnect.Shared",
-        "projectPath": "/home/mike/Projects/SingleHealthRecord/NostrConnect.Shared/NostrConnect.Shared.csproj",
-        "packagesPath": "/home/mike/.nuget/packages/",
-        "outputPath": "/home/mike/Projects/SingleHealthRecord/NostrConnect.Shared/obj/",
-        "projectStyle": "PackageReference",
-        "crossTargeting": true,
-        "configFilePaths": [
-          "/home/mike/Projects/SingleHealthRecord/nuget.config",
-          "/home/mike/.nuget/NuGet/NuGet.Config"
-        ],
-        "originalTargetFrameworks": [
-          "net9.0",
-          "net9.0-android"
-        ],
-        "sources": {
-          "/usr/lib/dotnet/library-packs": {},
-          "https://api.nuget.org/v3/index.json": {},
-          "https://nuget.pkg.github.com/Composed-Health/index.json": {}
-        },
-        "frameworks": {
-          "net9.0": {
-            "targetAlias": "net9.0",
-            "projectReferences": {
-              "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/BlazeJump.Tools.csproj": {
-                "projectPath": "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/BlazeJump.Tools.csproj"
-              }
-            }
-          },
-          "net9.0-android35.0": {
-            "targetAlias": "net9.0-android",
-            "projectReferences": {
-              "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/BlazeJump.Tools.csproj": {
-                "projectPath": "/home/mike/Projects/SingleHealthRecord/BlazeJump.Tools/BlazeJump.Tools.csproj"
-              }
-            }
-          }
-        },
-        "warningProperties": {
-          "warnAsError": [
-            "NU1605"
-          ]
-        },
-        "restoreAuditProperties": {
-          "enableAudit": "true",
-          "auditLevel": "low",
-          "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "9.0.100"
-      },
-      "frameworks": {
-        "net9.0": {
-          "targetAlias": "net9.0",
-          "dependencies": {
-            "Newtonsoft.Json": {
-              "target": "Package",
-              "version": "[13.0.4, )"
-            }
-          },
-          "imports": [
-            "net461",
-            "net462",
-            "net47",
-            "net471",
-            "net472",
-            "net48",
-            "net481"
-          ],
-          "assetTargetFallback": true,
-          "warn": true,
-          "frameworkReferences": {
-            "Microsoft.NETCore.App": {
-              "privateAssets": "all"
-            }
-          },
-          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
-        },
-        "net9.0-android35.0": {
-          "targetAlias": "net9.0-android",
-          "dependencies": {
-            "Newtonsoft.Json": {
-              "target": "Package",
-              "version": "[13.0.4, )"
-            }
-          },
-          "imports": [
-            "net461",
-            "net462",
-            "net47",
-            "net471",
-            "net472",
-            "net48",
-            "net481"
-          ],
-          "assetTargetFallback": true,
-          "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[9.0.10, 9.0.10]"
-            }
-          ],
-          "frameworkReferences": {
-            "Microsoft.Android": {
-              "privateAssets": "all"
-            },
-            "Microsoft.NETCore.App": {
-              "privateAssets": "all"
-            }
-          },
-          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

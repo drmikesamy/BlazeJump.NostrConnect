@@ -4,7 +4,7 @@ using BlazeJump.Tools.Services.Connections.Providers;
 using BlazeJump.Tools.Services.Identity;
 using BlazeJump.Tools.Services.Message;
 using BlazeJump.Tools.Services.Notification;
-using BlazeJump.Tools.Services.UserProfile;
+using BlazeJump.Tools.Services.Logging;
 
 namespace BlazeJump.Tools
 {
@@ -24,7 +24,6 @@ namespace BlazeJump.Tools
 		/// <item><description>IMessageService - Handles Nostr event messaging</description></item>
 		/// <item><description>INotificationService - Manages application notifications</description></item>
 		/// <item><description>IRelayManager - Manages connections to Nostr relays</description></item>
-		/// <item><description>IUserProfileService - Handles user profile operations</description></item>
 		/// <item><description>IMapper - AutoMapper instance for object mapping</description></item>
 		/// </list>
 		/// </remarks>
@@ -35,12 +34,11 @@ namespace BlazeJump.Tools
 		/// </example>
 		public static void ConfigureServices(IServiceCollection services)
 		{
-			services.AddSingleton<IIdentityService, IdentityService>();
-			services.AddSingleton<IMessageService, MessageService>();
-			services.AddSingleton<INotificationService, NotificationService>();
-			services.AddSingleton<IRelayManager, RelayManager>(
+			services.AddScoped<ILoggingService, LoggingService>();
+			services.AddScoped<IMessageService, MessageService>();
+			services.AddScoped<INotificationService, NotificationService>();
+			services.AddScoped<IRelayManager, RelayManager>(
 				_ => new RelayManager(new RelayConnectionProvider()));
-			services.AddSingleton<IUserProfileService, UserProfileService>();
 
 			var mapperConfig = new MapperConfiguration(cfg =>
 			{
