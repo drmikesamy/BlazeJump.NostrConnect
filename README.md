@@ -1,4 +1,4 @@
-# NostrConnect
+# BlazeJump.NostrConnect
 
 Use an Android device as your cryptographic identity for web applications.
 
@@ -311,6 +311,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Backup and restore functionality
 - [ ] NIP-07 browser extension support
 
----
 
 Built with ?? using .NET 9 and Nostr
