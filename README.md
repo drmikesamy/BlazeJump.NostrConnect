@@ -1,5 +1,7 @@
 # NostrConnect
 
+Use an Android device as your cryptographic identity for web applications.
+
 A cross-platform Nostr Connect implementation that enables secure communication between a web browser client and an Android mobile device for cryptographic signing operations.
 
 <div align="center">
