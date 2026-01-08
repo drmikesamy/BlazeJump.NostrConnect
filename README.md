@@ -1,8 +1,8 @@
-# NostrConnect
+# BlazeJump.NostrConnect
+
+Use an Android device as your cryptographic identity for web applications.
 
 A cross-platform Nostr Connect implementation that enables secure communication between a web browser client and an Android mobile device for cryptographic signing operations.
-
-## ?? Screenshots
 
 <div align="center">
 
@@ -311,6 +311,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Backup and restore functionality
 - [ ] NIP-07 browser extension support
 
----
 
 Built with ?? using .NET 9 and Nostr
