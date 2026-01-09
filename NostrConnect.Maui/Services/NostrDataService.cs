@@ -54,6 +54,9 @@ namespace NostrConnect.Maui.Services
                 {
                     existing.IsCurrentUser = false;
                 }
+                
+                // Save current user public key to Preferences for recovery
+                Preferences.Default.Set("current_user_pubkey", profile.PublicKey);
             }
 
             profile.LastUpdated = DateTime.UtcNow;

@@ -12,6 +12,7 @@ using NostrConnect.Maui.Services.Identity;
 using BlazeJump.Tools.Services.Identity;
 using BlazeJump.Tools.Services.Persistence;
 using MudBlazor.Services;
+using BlazeJump.Tools.Models;
 
 namespace NostrConnect.Maui;
 
@@ -69,9 +70,71 @@ public static class MauiProgram
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<NostrDbContext>>();
         using var context = await contextFactory.CreateDbContextAsync();
         
-        // Delete and recreate database to ensure schema is correct
-        // TODO: Replace with proper migrations for production
-        await context.Database.EnsureDeletedAsync();
-        await context.Database.EnsureCreatedAsync();
+        // Check if database needs migration by checking if HealthData table exists
+        var needsMigration = false;
+        try
+        {
+            await context.HealthData.AnyAsync();
+        }
+        catch
+        {
+            needsMigration = true;
+        }
+
+        if (needsMigration)
+        {
+            // Save existing profiles before recreating database
+            List<UserProfile> existingProfiles = new List<UserProfile>();
+            try
+            {
+                existingProfiles = await context.UserProfiles.ToListAsync();
+            }
+            catch
+            {
+                // If profiles table doesn't exist, that's ok
+            }
+
+            // Delete and recreate database to ensure schema is correct
+            await context.Database.EnsureDeletedAsync();
+            await context.Database.EnsureCreatedAsync();
+
+            // Restore profiles after database recreation
+            if (existingProfiles.Any())
+            {
+                context.UserProfiles.AddRange(existingProfiles);
+                await context.SaveChangesAsync();
+            }
+        }
+        else
+        {
+            // No migration needed, just ensure database is created
+            await context.Database.EnsureCreatedAsync();
+        }
+
+        // Check if we need to restore profile from SecureStorage
+        var currentUserPubkey = Preferences.Default.Get("current_user_pubkey", string.Empty);
+        if (!string.IsNullOrEmpty(currentUserPubkey))
+        {
+            var existingProfile = await context.UserProfiles
+                .FirstOrDefaultAsync(p => p.PublicKey == currentUserPubkey);
+            
+            if (existingProfile == null)
+            {
+                // Profile exists in SecureStorage but not in database - restore it
+                var privateKey = await SecureStorage.Default.GetAsync($"blazejumpuserkeypair_{currentUserPubkey}");
+                if (!string.IsNullOrEmpty(privateKey))
+                {
+                    var restoredProfile = new UserProfile
+                    {
+                        PublicKey = currentUserPubkey,
+                        IsCurrentUser = true,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    
+                    context.UserProfiles.Add(restoredProfile);
+                    await context.SaveChangesAsync();
+                }
+            }
+        }
     }
 }
