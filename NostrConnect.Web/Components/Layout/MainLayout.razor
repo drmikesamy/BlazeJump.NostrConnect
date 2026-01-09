@@ -1,31 +1,120 @@
 ﻿@inherits LayoutComponentBase
+@using BlazeJump.Tools.Models
 @using MudBlazor
+@using NostrConnect.Web.Services.Identity
+@inject NavigationManager NavigationManager
+@inject IWebIdentityService IdentityService
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-        <MudText Typo="Typo.h6">NostrConnect</MudText>
-        <MudSpacer />
-    </MudAppBar>
-    
-    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Responsive">
-        <MudNavMenu>
-            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-        </MudNavMenu>
-    </MudDrawer>
-    
+    @if (IdentityService.ActiveUserProfile != null)
+    {
+        <!-- App Bar -->
+        <MudAppBar Elevation="1">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+            <MudText Typo="Typo.h6">Desilo</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.QrCodeScanner" Color="Color.Default" OnClick="@(() => NavigationManager.NavigateTo("sync"))" />
+            <MudIconButton Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Primary" Class="ml-2" OnClick="@(() => _isProfileOpen = true)" />
+        </MudAppBar>
+
+        <!-- Sidebar Drawer -->
+        <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
+            <MudDrawerHeader>
+                <MudText Typo="Typo.h6">Desilo</MudText>
+            </MudDrawerHeader>
+            <MudNavMenu>
+                <MudNavLink Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+                <MudNavLink Icon="@Icons.Material.Filled.CalendarMonth">Appointments</MudNavLink>
+                <MudNavLink Icon="@Icons.Material.Filled.MedicalServices">Medications</MudNavLink>
+                <MudNavLink Icon="@Icons.Material.Filled.Insights">Vitals</MudNavLink>
+                <MudNavLink Icon="@Icons.Material.Filled.Description">Reports</MudNavLink>
+                <MudDivider Class="my-2" />
+                <MudNavLink Icon="@Icons.Material.Filled.Logout">Logout Session</MudNavLink>
+            </MudNavMenu>
+        </MudDrawer>
+
+        <!-- Profile Drawer -->
+        <MudDrawer @bind-Open="_isProfileOpen" Anchor="Anchor.Right" Elevation="1" Variant="@DrawerVariant.Temporary" Width="320px">
+            <MudDrawerHeader>
+                <MudText Typo="Typo.h6" Class="font-bold">Profiles</MudText>
+            </MudDrawerHeader>
+            <div class="pa-4 d-flex flex-column gap-3">
+                <MudText Typo="Typo.caption" Class="fw-bold mb-1" Style="color: #94a3b8; text-transform: uppercase;">Switch Profile</MudText>
+
+                @foreach (var profile in IdentityService.UserProfiles.Values)
+                {
+                    <MudPaper Outlined="true"
+                              Class="@(profile == IdentityService.ActiveUserProfile ? "pa-3 rounded-xl border-2 border-primary mud-theme-primary-light" : "pa-3 rounded-xl border-1")"
+                              Style="cursor: pointer;"
+                              @onclick="@(() => SwitchProfile(profile))">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Color="@(profile == IdentityService.ActiveUserProfile ? Color.Primary : Color.Default)" Size="Size.Medium">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" />
+                            </MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body2" Class="font-bold">@profile.Name</MudText>
+                            </div>
+                        </div>
+                    </MudPaper>
+                }
+
+                <MudButton Variant="Variant.Outlined" FullWidth="true" Class="rounded-xl border-dashed py-3" StartIcon="@Icons.Material.Filled.Add">
+                    Add Sub-Profile
+                </MudButton>
+            </div>
+            <div class="mt-auto pa-4">
+                <MudDivider Class="mb-4" />
+                <MudButton Variant="Variant.Text" FullWidth="true" StartIcon="@Icons.Material.Filled.Settings" Style="justify-content: start;">Account Settings</MudButton>
+                <MudButton Variant="Variant.Text" FullWidth="true" StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Style="justify-content: start;">Delete Profile</MudButton>
+            </div>
+        </MudDrawer>
+    }
+
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="my-4">
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="pa-6">
             @Body
         </MudContainer>
     </MudMainContent>
 </MudLayout>
 
 @code {
-    private bool _drawerOpen = true;
+    private bool _isProfileOpen = false;
+    bool _drawerOpen = false;
+
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#2563eb",
+            Secondary = "#7c3aed",
+            AppbarBackground = "rgba(255, 255, 255, 0.8)",
+            Background = "#f8fafc",
+            Success = "#10b981",
+            Error = "#f43f5e"
+        },
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "16px"
+        }
+    };
 
     void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
+    }
+
+    private void SwitchProfile(UserProfile p)
+    {
+        IdentityService.ActiveUserProfile = p;
+        _isProfileOpen = false;
+    }
+    private string GetBaseRelativeUrl()
+    {
+        return NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
     }
 }

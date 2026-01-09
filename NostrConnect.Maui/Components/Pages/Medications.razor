@@ -1,0 +1,135 @@
+@page "/medications"
+@using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Identity
+@using NostrConnect.Maui.Models
+@inject IHealthDataService HealthDataService
+@inject INativeIdentityService IdentityService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="pa-4">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <MudText Typo="Typo.h5" Class="font-bold">Medications</MudText>
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => _addDialogOpen = true)">
+            Add Medication
+        </MudButton>
+    </div>
+
+    @if (_medications.Any())
+    {
+        <MudTabs Elevation="0" Rounded="true" Class="mb-4">
+            <MudTabPanel Text="Active">
+                <MudStack Spacing="3" Class="mt-4">
+                    @foreach (var medication in _medications.Where(m => m.IsActive))
+                    {
+                        <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudText Typo="Typo.body1" Class="font-bold">@medication.Name</MudText>
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">ACTIVE</MudChip>
+                            </div>
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">@medication.Dosage</MudText>
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">@medication.Frequency</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #94a3b8;">Started: @medication.StartDate.ToString("MMM dd, yyyy")</MudText>
+                        </MudPaper>
+                    }
+                </MudStack>
+            </MudTabPanel>
+            <MudTabPanel Text="Inactive">
+                <MudStack Spacing="3" Class="mt-4">
+                    @foreach (var medication in _medications.Where(m => !m.IsActive))
+                    {
+                        <MudPaper Outlined="true" Class="pa-4 rounded-xl" Style="opacity: 0.7;">
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudText Typo="Typo.body1" Class="font-bold">@medication.Name</MudText>
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Outlined">STOPPED</MudChip>
+                            </div>
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">@medication.Dosage</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #94a3b8;">
+                                @medication.StartDate.ToString("MMM dd, yyyy") - @(medication.EndDate?.ToString("MMM dd, yyyy") ?? "Unknown")
+                            </MudText>
+                        </MudPaper>
+                    }
+                </MudStack>
+            </MudTabPanel>
+        </MudTabs>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info">
+            No medications recorded yet. Click "Add Medication" to add your first one.
+        </MudAlert>
+    }
+</MudContainer>
+
+<MudDialog @bind-Visible="_addDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add Medication</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_newMedication.Name" Label="Medication Name" Variant="Variant.Outlined" Required />
+            <MudTextField @bind-Value="_newMedication.Dosage" Label="Dosage" Variant="Variant.Outlined" Required 
+                          Placeholder="e.g., 500mg" />
+            <MudTextField @bind-Value="_newMedication.Frequency" Label="Frequency" Variant="Variant.Outlined" Required 
+                          Placeholder="e.g., Twice daily" />
+            <MudDatePicker @bind-Date="_startDate" Label="Start Date" Variant="Variant.Outlined" Required />
+            <MudSwitch @bind-Value="_newMedication.IsActive" Label="Currently Taking" Color="Color.Success" />
+            @if (!_newMedication.IsActive)
+            {
+                <MudDatePicker @bind-Date="_endDate" Label="End Date" Variant="Variant.Outlined" />
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addDialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveMedication">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<Medication> _medications = new();
+    private Medication _newMedication = new() { IsActive = true };
+    private bool _addDialogOpen = false;
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMedications();
+    }
+
+    private async Task LoadMedications()
+    {
+        var publicKey = IdentityService.ActiveUserProfile?.PublicKey;
+        if (string.IsNullOrEmpty(publicKey))
+            return;
+
+        _medications = await HealthDataService.GetMedicationsAsync(publicKey);
+    }
+
+    private async Task SaveMedication()
+    {
+        if (string.IsNullOrWhiteSpace(_newMedication.Name) || 
+            string.IsNullOrWhiteSpace(_newMedication.Dosage) || 
+            string.IsNullOrWhiteSpace(_newMedication.Frequency) ||
+            !_startDate.HasValue)
+        {
+            Snackbar.Add("Please fill in all required fields", Severity.Warning);
+            return;
+        }
+
+        _newMedication.StartDate = _startDate.Value;
+        _newMedication.EndDate = _endDate;
+
+        await HealthDataService.SaveMedicationAsync(_newMedication);
+        Snackbar.Add("Medication saved and posted to Nostr", Severity.Success);
+        
+        _addDialogOpen = false;
+        _newMedication = new() { IsActive = true };
+        _startDate = null;
+        _endDate = null;
+        await LoadMedications();
+    }
+}

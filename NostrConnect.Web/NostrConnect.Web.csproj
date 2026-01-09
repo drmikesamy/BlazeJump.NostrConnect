@@ -7,6 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Remove="Components\prototype.razor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Components\Prototype.razor" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BlazeJump.Tools\BlazeJump.Tools.csproj" />
   </ItemGroup>
 

@@ -11,5 +11,6 @@ namespace NostrConnect.Maui.Services.Identity
 	public interface INativeIdentityService : IIdentityService
 	{
 		Task OnQrConnectReceived(string pubkey, List<string> relays, string secret, List<string> permissions);
+		Task EnsureInitializedAsync();
 	}
 }

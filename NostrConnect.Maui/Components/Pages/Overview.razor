@@ -1,0 +1,151 @@
+﻿@page "/overview"
+@using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Identity
+@using NostrConnect.Maui.Models
+@inject IHealthDataService HealthDataService
+@inject INativeIdentityService IdentityService
+@inject NavigationManager NavigationManager
+
+<div class="mx-auto" style="max-width: 600px; margin-top: 40px;">
+    <div class="mb-8">
+        <MudText Typo="Typo.h5" Class="font-bold">Health Overview</MudText>
+        <MudText Typo="Typo.body2" Style="color: #64748b;">@GetLastUpdateText()</MudText>
+    </div>
+
+    @if (_vitals.Any())
+    {
+        <MudGrid Spacing="3" Class="mb-6">
+            @foreach (var vital in _vitals.Take(2))
+            {
+                <MudItem xs="6">
+                    <MudPaper Outlined="true" Class="pa-4 rounded-xl shadow-sm">
+                        <div class="d-flex align-center gap-2 mb-2 text-error">
+                            <MudIcon Icon="@GetVitalIcon(vital.Type)" Size="Size.Small" />
+                            <MudText Typo="Typo.body2" Class="font-bold">@vital.Type</MudText>
+                        </div>
+                        <MudText Typo="Typo.h4" Class="font-bold">@vital.Value <small style="font-size: 0.9rem; color: #94a3b8;">@vital.Unit</small></MudText>
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-6">
+            No vital signs recorded yet. <MudLink Href="/vitals">Add your first vital sign</MudLink>
+        </MudAlert>
+    }
+
+    <MudText Typo="Typo.subtitle2" Class="font-bold mb-3 ml-1">Latest Records</MudText>
+
+    <div class="d-flex flex-column gap-3">
+        @if (_appointments.Any())
+        {
+            @foreach (var appointment in _appointments.Take(1))
+            {
+                <MudPaper Outlined="true" Class="pa-4 rounded-xl d-flex align-center gap-4">
+                    <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Class="rounded-lg">
+                        <MudIcon Icon="@Icons.Material.Filled.Event" />
+                    </MudAvatar>
+                    <div class="flex-grow-1">
+                        <MudText Typo="Typo.body1" Class="font-bold">@appointment.Title</MudText>
+                        <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.Provider • @appointment.DateTime.ToString("MMM dd")</MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+                </MudPaper>
+            }
+        }
+        else
+        {
+            <MudPaper Outlined="true" Class="pa-4 rounded-xl" @onclick="@(() => NavigationManager.NavigateTo("/appointments"))" Style="cursor: pointer;">
+                <div class="d-flex align-center gap-4">
+                    <MudAvatar Color="Color.Default" Variant="Variant.Outlined" Class="rounded-lg">
+                        <MudIcon Icon="@Icons.Material.Filled.Add" />
+                    </MudAvatar>
+                    <MudText Typo="Typo.body1">Add your first appointment</MudText>
+                </div>
+            </MudPaper>
+        }
+
+        @if (_medications.Any(m => m.IsActive))
+        {
+            @foreach (var medication in _medications.Where(m => m.IsActive).Take(1))
+            {
+                <MudPaper Outlined="true" Class="pa-4 rounded-xl d-flex align-center gap-4">
+                    <MudAvatar Color="Color.Success" Variant="Variant.Filled" Class="rounded-lg">
+                        <MudIcon Icon="@Icons.Material.Filled.Medication" />
+                    </MudAvatar>
+                    <div class="flex-grow-1">
+                        <MudText Typo="Typo.body1" Class="font-bold">@medication.Name</MudText>
+                        <MudText Typo="Typo.body2" Style="color: #64748b;">@medication.Dosage • @medication.Frequency</MudText>
+                    </div>
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">ACTIVE</MudChip>
+                </MudPaper>
+            }
+        }
+        else
+        {
+            <MudPaper Outlined="true" Class="pa-4 rounded-xl" @onclick="@(() => NavigationManager.NavigateTo("/medications"))" Style="cursor: pointer;">
+                <div class="d-flex align-center gap-4">
+                    <MudAvatar Color="Color.Default" Variant="Variant.Outlined" Class="rounded-lg">
+                        <MudIcon Icon="@Icons.Material.Filled.Add" />
+                    </MudAvatar>
+                    <MudText Typo="Typo.body1">Add your first medication</MudText>
+                </div>
+            </MudPaper>
+        }
+    </div>
+</div>
+
+@code {
+    private List<VitalSign> _vitals = new();
+    private List<Medication> _medications = new();
+    private List<Appointment> _appointments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        var publicKey = IdentityService.ActiveUserProfile?.PublicKey;
+        if (string.IsNullOrEmpty(publicKey))
+            return;
+
+        _vitals = await HealthDataService.GetVitalSignsAsync(publicKey);
+        _medications = await HealthDataService.GetMedicationsAsync(publicKey);
+        _appointments = await HealthDataService.GetAppointmentsAsync(publicKey);
+    }
+
+    private string GetLastUpdateText()
+    {
+        var allTimestamps = new List<DateTime>();
+        allTimestamps.AddRange(_vitals.Select(v => v.Timestamp));
+        allTimestamps.AddRange(_appointments.Select(a => a.DateTime));
+        
+        if (!allTimestamps.Any())
+            return "No data yet";
+
+        var latest = allTimestamps.Max();
+        var diff = DateTime.UtcNow - latest;
+        
+        if (diff.TotalMinutes < 60)
+            return $"Updated {(int)diff.TotalMinutes} minutes ago";
+        if (diff.TotalHours < 24)
+            return $"Updated {(int)diff.TotalHours} hours ago";
+        return $"Updated {(int)diff.TotalDays} days ago";
+    }
+
+    private string GetVitalIcon(string type)
+    {
+        return type.ToLower() switch
+        {
+            "heart rate" => Icons.Material.Filled.Favorite,
+            "blood pressure" => Icons.Material.Filled.MonitorHeart,
+            "temperature" => Icons.Material.Filled.Thermostat,
+            "weight" => Icons.Material.Filled.Scale,
+            _ => Icons.Material.Filled.HealthAndSafety
+        };
+    }
+}

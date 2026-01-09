@@ -35,8 +35,8 @@ public static class MauiProgram
         builder.Services.AddDbContextFactory<NostrDbContext>(options =>
             options.UseSqlite($"Data Source={dbPath}"));
 
-        // Register data service
         builder.Services.AddSingleton<INostrDataService, NostrDataService>();
+        builder.Services.AddScoped<IHealthDataService, HealthDataService>();
 
         CommonServices.ConfigureServices(builder.Services);
         builder.Services.AddSingleton<INativeIdentityService, NativeIdentityService>();
@@ -68,6 +68,10 @@ public static class MauiProgram
         using var scope = services.CreateScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<NostrDbContext>>();
         using var context = await contextFactory.CreateDbContextAsync();
+        
+        // Delete and recreate database to ensure schema is correct
+        // TODO: Replace with proper migrations for production
+        await context.Database.EnsureDeletedAsync();
         await context.Database.EnsureCreatedAsync();
     }
 }

@@ -1,309 +1,96 @@
 ﻿@page "/"
-@using BlazeJump.Tools.Models.NostrConnect
 @using BlazeJump.Tools.Services.Logging
-@using BlazeJump.Tools.Models
-@using NostrConnect.Maui.Pages
-@using NostrConnect.Maui.Services
-@using NostrConnect.Maui.Services.Crypto
 @using NostrConnect.Maui.Services.Identity
+@using BlazeJump.Tools.Services.Connections
 @using BlazeJump.Tools.Services.Crypto
-@using BlazeJump.Tools.Services.Persistence
-@inject NavigationManager _navigation
-@inject ILoggingService _loggingService
-@inject INativeIdentityService _identityService
-@inject INostrDataService _dataService
+@using BlazeJump.Tools.Services.Identity
+@using BlazeJump.Tools.Models
+@using BlazeJump.Tools.Models.NostrConnect
+@using BlazeJump.Tools.Builders
+@using BlazeJump.Tools.Enums
+@using BlazeJump.Tools.Helpers
+@using MudBlazor
+@inject IRelayManager RelayManager
+@inject ICryptoService CryptoService
+@inject INativeIdentityService IdentityService
+@inject ILoggingService LoggingService
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
-<PageTitle>Home</PageTitle>
+<PageTitle>NostrConnect - Home</PageTitle>
 
-@if (_identityService.ActiveUserProfile == null)
+@if (isLoading)
 {
-    <MudPaper Class="pa-4 mt-4">
-        <MudText Typo="Typo.h4" GutterBottom="true">Create your profile</MudText>
-        <MudAlert Severity="Severity.Info" Class="mb-4">
-            You haven't set up a profile yet.
-        </MudAlert>
-        
-        <MudStack Spacing="3">
-            <MudButton Variant="Variant.Filled" 
-                      Color="Color.Primary" 
-                      Size="Size.Large"
-                      FullWidth="true"
-                      StartIcon="@Icons.Material.Filled.PersonAdd"
-                      OnClick="@(() => _identityService.CreateUserProfile())">
-                Create New Profile
-            </MudButton>
-            
-            <MudTextField @bind-Value="_newPrivateKey" 
-                         Label="Private Key (hex or nsec format)"
-                         Variant="Variant.Outlined"
-                         Placeholder="nsec... or hex string" />
-            
-            <MudButton Variant="Variant.Filled" 
-                      Color="Color.Primary" 
-                      Size="Size.Large"
-                      FullWidth="true"
-                      StartIcon="@Icons.Material.Filled.Key"
-                      OnClick="@(() => _identityService.CreateUserProfile(_newPrivateKey))">
-                Import Private Key
-            </MudButton>
-        </MudStack>
-    </MudPaper>
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Style="min-height: 400px;">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body2" Class="mt-4">Loading...</MudText>
+    </MudStack>
 }
-else
+else if (IdentityService.ActiveUserProfile == null)
 {
-    <MudCard Class="mb-4">
-        <MudCardContent>
-            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start" Class="mb-3">
-                <MudText Typo="Typo.h5">
-                    <MudIcon Icon="@Icons.Material.Filled.Badge" /> Active Profile
-                </MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" 
-                              Color="Color.Primary" 
-                              Size="Size.Small"
-                              Href="/edit-profile" />
-            </MudStack>
-            
-            @if (!string.IsNullOrEmpty(_identityService.ActiveUserProfile.Name))
-            {
-                <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">
-                    @_identityService.ActiveUserProfile.Name
-                </MudText>
-            }
-            
-            <MudText Typo="Typo.caption" Class="mb-1"><strong>Public Key (npub):</strong></MudText>
-            <MudPaper Class="pa-2 mb-3" Elevation="0" Style="word-break: break-all; font-family: monospace; font-size: 0.85rem;">
-                @BlazeJump.Tools.Helpers.GeneralHelpers.HexToBech32(_identityService.ActiveUserProfile.PublicKey, Bech32PrefixEnum.npub)
-            </MudPaper>
-            
-            <MudText Typo="Typo.caption" Class="mb-1"><strong>Public Key (Hex):</strong></MudText>
-            <MudPaper Class="pa-2" Elevation="0" Style="word-break: break-all; font-family: monospace; font-size: 0.75rem; opacity: 0.7;">
-                @_identityService.ActiveUserProfile.PublicKey
-            </MudPaper>
-        </MudCardContent>
-    </MudCard>
-    
-    <MudButton Variant="Variant.Filled" 
-              Color="Color.Primary" 
-              Size="Size.Large"
-              FullWidth="true"
-              StartIcon="@Icons.Material.Filled.QrCodeScanner"
-              OnClick="StartScanning"
-              Class="mb-4">
-        Link a Device
-    </MudButton>
+    <MudStack AlignItems="AlignItems.Stretch">
+        <MudText Typo="Typo.h4" Class="fw-bold mb-2" Style="color: #0f172a;">Welcome to Desilo</MudText>
+        <MudText Typo="Typo.body1" Class="mb-12" Style="color: #64748b; max-width: 300px;">
+            Your secure, private gateway to your health records and vitals.
+        </MudText>
 
-    <MudText Typo="Typo.h4" Class="mb-3">Linked Devices</MudText>
-    
-    @if (_identityService.ActiveUserProfile?.Sessions?.Any() == true)
-    {
-        <MudStack Spacing="2">
-            @foreach(var session in _identityService.ActiveUserProfile.Sessions)
-            {
-                var isPinging = _pingSessionPubkey == session.TheirPubkey;
-                <MudPaper Class="pa-3" Style="position: relative;">
-                    @if (isPinging && _showPingNotification)
-                    {
-                        <MudChip T="string" 
-                                Color="Color.Success" 
-                                Size="Size.Small" 
-                                Style="position: absolute; top: 10px; right: 10px;">
-                            <MudIcon Icon="@Icons.Material.Filled.Wifi" Size="Size.Small" /> Ping Received
-                        </MudChip>
-                    }
-                    
-                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
-                        <MudChip T="string" 
-                                Color="@(session.Status == SessionStatusEnum.Connected ? Color.Success : Color.Default)" 
-                                Size="Size.Small">
-                            @session.Status
-                        </MudChip>
-                        @if (session.LastActive.HasValue)
-                        {
-                            <MudText Typo="Typo.caption">
-                                @session.LastActive.Value.ToString("MMM dd, yyyy HH:mm")
-                            </MudText>
-                        }
-                    </MudStack>
-                    
-                    <MudText Typo="Typo.caption" Class="mb-1"><strong>Session Pubkey (Bech32):</strong></MudText>
-                    <MudPaper Class="pa-2 mb-2" Elevation="0" Style="word-break: break-all; font-family: monospace; font-size: 0.85rem;">
-                        @BlazeJump.Tools.Helpers.GeneralHelpers.HexToBech32(session.TheirPubkey, Bech32PrefixEnum.npub)
-                    </MudPaper>
-                    
-                    <MudText Typo="Typo.caption" Class="mb-1"><strong>Session Pubkey (Hex):</strong></MudText>
-                    <MudPaper Class="pa-2 mb-3" Elevation="0" Style="word-break: break-all; font-family: monospace; font-size: 0.85rem; opacity: 0.7;">
-                        @session.TheirPubkey
-                    </MudPaper>
-                    
-                    <MudStack Row="true" Spacing="2">
-                        <MudButton Variant="Variant.Outlined" 
-                                  Color="Color.Primary" 
-                                  Size="Size.Small"
-                                  StartIcon="@Icons.Material.Filled.SignalCellularAlt"
-                                  OnClick="@(async () => await SendPingToSession(session))"
-                                  Disabled="@(session.Status != SessionStatusEnum.Connected)">
-                            Ping
-                        </MudButton>
-                        <MudButton Variant="Variant.Outlined" 
-                                  Color="Color.Error" 
-                                  Size="Size.Small"
-                                  StartIcon="@Icons.Material.Filled.Cancel"
-                                  OnClick="@(async () => await DisconnectSession(session))">
-                            Disconnect
-                        </MudButton>
-                    </MudStack>
-                </MudPaper>
-            }
-        </MudStack>
-    }
-    else
-    {
-        <MudAlert Severity="Severity.Info">
-            No devices linked yet. Scan a QR code to link a device.
-        </MudAlert>
-    }
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => NavigationManager.NavigateTo("/profile"))">
+            Create New Profile
+        </MudButton>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Default"
+                   Size="Size.Large"
+                   OnClick="@(() => NavigationManager.NavigateTo("/import-key"))">
+            Import Private Key
+        </MudButton>
+
+        <MudText Typo="Typo.caption" Class="mt-8" Style="color: #94a3b8;">
+            Secured by End-to-End Encryption
+        </MudText>
+    </MudStack>
 }
-
-<MudExpansionPanels Class="mt-4">
-    <MudExpansionPanel Text="@(_showLogs ? "Hide Logs" : "Show Logs")" 
-                      Icon="@Icons.Material.Filled.Article"
-                      @bind-IsExpanded="_showLogs">
-        <MudPaper Class="pa-2" 
-                 Style="background-color: #1a1a1a; color: #00ff00; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 11px;">
-            @if (_logs != null && _logs.Any())
-            {
-                @foreach (var log in _logs)
-                {
-                    <div style="margin-bottom: 3px; word-break: break-word;">@log</div>
-                }
-            }
-            else
-            {
-                <MudText Color="Color.Secondary">No logs yet...</MudText>
-            }
-        </MudPaper>
-    </MudExpansionPanel>
-</MudExpansionPanels>
 
 @code {
-    [Parameter]
-    public EventCallback<string> OnConnected { get; set; }
-    private List<string> _logs = new();
-    private bool _showLogs = false;
-    private string _newPrivateKey = string.Empty;
-    private string? _pingSessionPubkey = null;
-    private bool _showPingNotification = false;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        _loggingService.LogAdded += OnLogAdded;
-        _identityService.NotifySessionStateChanged += (sender, args) => InvokeAsync(StateHasChanged);
-        _identityService.PingReceived += OnPongReceived;
+        IdentityService.NotifySessionStateChanged += OnSessionStatusChanged;
+        LoggingService.LogAdded += OnLogAdded;
+
+        if (!RelayManager.Relays.Contains("wss://relay.damus.io"))
+            RelayManager.TryAddUri("wss://relay.damus.io");
+
+        await IdentityService.EnsureInitializedAsync();
+        
+        if (IdentityService.ActiveUserProfile != null)
+        {
+            NavigationManager.NavigateTo("/overview");
+        }
+        else
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async void OnSessionStatusChanged(object? sender, NostrConnectSession session)
+    {
+        await InvokeAsync(StateHasChanged);
     }
 
     private void OnLogAdded(object? sender, string log)
     {
-        InvokeAsync(() =>
-        {
-            _logs = _loggingService.GetLogs();
-            StateHasChanged();
-        });
-    }
-
-    private async void OnPongReceived(object? sender, NostrConnectResponse response)
-    {
-        await InvokeAsync(async () =>
-        {
-            _loggingService.Log($"Pong received: {response.Result}");
-            
-            // Find which session this pong belongs to by matching with any active session
-            var session = _identityService.ActiveUserProfile?.Sessions.FirstOrDefault(s => s.IsConnected);
-            if (session != null)
-            {
-                _pingSessionPubkey = session.TheirPubkey;
-                _showPingNotification = true;
-                StateHasChanged();
-
-                await Task.Delay(2000);
-                _showPingNotification = false;
-                _pingSessionPubkey = null;
-                StateHasChanged();
-            }
-        });
-    }
-
-    private async Task SendPingToSession(NostrConnectSession session)
-    {
-        try
-        {
-            await _identityService.SendPing(session);
-            _loggingService.Log($"Ping sent to client {session.TheirPubkey.Substring(0, 8)}...");
-        }
-        catch (Exception ex)
-        {
-            _loggingService.Log($"Error sending ping: {ex.Message}");
-            if (Application.Current?.Windows?.Count > 0)
-                await Application.Current.Windows[0].Page!.DisplayAlert("Error", $"Failed to send ping: {ex.Message}", "OK");
-        }
-    }
-
-    private async Task DisconnectSession(NostrConnectSession session)
-    {
-        try
-        {
-            bool confirm = false;
-            if (Application.Current?.Windows?.Count > 0)
-            {
-                confirm = await Application.Current.Windows[0].Page!.DisplayAlert(
-                    "Confirm Disconnect", 
-                    "Are you sure you want to disconnect this session?", 
-                    "Yes", 
-                    "No");
-            }
-            
-            if (confirm)
-            {
-                await _identityService.SendDisconnect(session);
-                _loggingService.Log($"Session disconnected: {session.TheirPubkey.Substring(0, 8)}...");
-                StateHasChanged();
-            }
-        }
-        catch (Exception ex)
-        {
-            _loggingService.Log($"Error disconnecting session: {ex.Message}");
-            if (Application.Current?.Windows?.Count > 0)
-                await Application.Current.Windows[0].Page!.DisplayAlert("Error", $"Failed to disconnect: {ex.Message}", "OK");
-        }
+        InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
-        _loggingService.LogAdded -= OnLogAdded;
-        _identityService.NotifySessionStateChanged -= (sender, args) => InvokeAsync(StateHasChanged);
-        _identityService.PingReceived -= OnPongReceived;
-    }
-
-    private async Task StartScanning()
-    {
-        var status = await Permissions.CheckStatusAsync<Permissions.Camera>();
-        if (status != PermissionStatus.Granted)
-        {
-            status = await Permissions.RequestAsync<Permissions.Camera>();
-            if (status != PermissionStatus.Granted)
-            {
-                if (Application.Current?.Windows?.Count > 0)
-                    await Application.Current.Windows[0].Page!.DisplayAlert("Permission Required", 
-                        "Camera permission is required to scan QR codes.", 
-                        "OK");
-                return;
-            }
-        }
-        
-        var scannerPage = new QRScannerPage(_identityService, _dataService);
-        var mainPage = Application.Current?.Windows[0]?.Page;
-        if (mainPage?.Navigation is not null)
-        {
-            await mainPage.Navigation.PushModalAsync(scannerPage);
-        }
+        IdentityService.NotifySessionStateChanged -= OnSessionStatusChanged;
+        LoggingService.LogAdded -= OnLogAdded;
     }
 }

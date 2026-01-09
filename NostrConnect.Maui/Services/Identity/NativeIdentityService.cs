@@ -14,6 +14,7 @@ namespace NostrConnect.Maui.Services.Identity
 	{
 		private readonly ILoggingService _loggingService;
 		private readonly INostrDataService _dataService;
+		private Task? _initializationTask;
 
 		public NativeIdentityService(
 			IRelayManager relayManager,
@@ -26,6 +27,35 @@ namespace NostrConnect.Maui.Services.Identity
 			_loggingService = loggingService;
 			_dataService = dataService;
 			_messageService.ProcessNostrConnectMessage += async (sender, message) => await OnIncomingNostrConnectMessage(sender, message);
+			_initializationTask = InitializeAsync();
+		}
+
+		private async Task InitializeAsync()
+		{
+			try
+			{
+				var profiles = await _dataService.GetAllUserProfilesAsync();
+				foreach (var profile in profiles)
+				{
+					UserProfiles.TryAdd(profile.PublicKey, profile);
+				}
+
+				var currentProfile = await _dataService.GetCurrentUserProfileAsync();
+				if (currentProfile != null)
+				{
+					ActiveUserProfile = currentProfile;
+					_loggingService.Log($"Loaded profile: {currentProfile.Name ?? currentProfile.PublicKey.Substring(0, 8)}");
+				}
+			}
+			catch (Exception ex)
+			{
+				_loggingService.Log($"Error initializing identity service: {ex.Message}");
+			}
+		}
+
+		public Task EnsureInitializedAsync()
+		{
+			return _initializationTask ?? Task.CompletedTask;
 		}
 
 		public async Task OnQrConnectReceived(string theirPubkey, List<string> relays, string secret, List<string> permissions)

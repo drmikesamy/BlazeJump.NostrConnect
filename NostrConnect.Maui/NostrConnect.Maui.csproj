@@ -64,6 +64,11 @@
     </ItemGroup>
 
     <ItemGroup>
+      <MauiCss Include="Components\Layout\MainLayout.razor.css" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Hl7.Fhir.R5" Version="6.0.1" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.8" />

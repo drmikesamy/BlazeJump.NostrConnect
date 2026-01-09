@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using BlazeJump.Tools.Models;
-using Newtonsoft.Json;
 using BlazeJump.Tools.Models.NostrConnect;
+using Newtonsoft.Json;
+using NostrConnect.Maui.Models;
 
 namespace NostrConnect.Maui.Data
 {
@@ -24,6 +25,11 @@ namespace NostrConnect.Maui.Data
         /// Gets or sets the Nostr Connect sessions table.
         /// </summary>
         public DbSet<NostrConnectSession> NostrConnectSessions { get; set; }
+
+        /// <summary>
+        /// Gets or sets the health data table.
+        /// </summary>
+        public DbSet<HealthData> HealthData { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NostrDbContext"/> class.
@@ -75,6 +81,14 @@ namespace NostrConnect.Maui.Data
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
                         v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>());
+            });
+
+            // Configure HealthData
+            modelBuilder.Entity<HealthData>(entity =>
+            {
+                entity.HasIndex(e => e.PublicKey);
+                entity.HasIndex(e => e.Type);
+                entity.HasIndex(e => e.Timestamp);
             });
         }
     }

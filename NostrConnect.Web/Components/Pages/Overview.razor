@@ -1,0 +1,69 @@
+﻿@page "/overview"
+
+<div class="mx-auto" style="max-width: 600px; margin-top: 40px;">
+    <div class="mb-8">
+        <MudText Typo="Typo.h5" Class="font-bold">Health Overview</MudText>
+        <MudText Typo="Typo.body2" Style="color: #64748b;">Updated 12 minutes ago</MudText>
+    </div>
+
+    <MudGrid Spacing="3" Class="mb-6">
+        <MudItem xs="6">
+            <MudPaper Outlined="true" Class="pa-4 rounded-xl shadow-sm">
+                <div class="d-flex align-center gap-2 mb-2 text-error">
+                    <MudIcon Icon="@Icons.Material.Filled.Favorite" Size="Size.Small" />
+                    <MudText Typo="Typo.body2" Class="font-bold">Heart Rate</MudText>
+                </div>
+                <MudText Typo="Typo.h4" Class="font-bold">72 <small style="font-size: 0.9rem; color: #94a3b8;">bpm</small></MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6">
+            <MudPaper Outlined="true" Class="pa-4 rounded-xl shadow-sm">
+                <div class="d-flex align-center gap-2 mb-2 text-primary">
+                    <MudIcon Icon="@Icons.Material.Filled.WaterDrop" Size="Size.Small" />
+                    <MudText Typo="Typo.body2" Class="font-bold">Blood Type</MudText>
+                </div>
+                <MudText Typo="Typo.h4" Class="font-bold">O Positive</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.subtitle2" Class="font-bold mb-3 ml-1">Latest Records</MudText>
+
+    <div class="d-flex flex-column gap-3">
+        <MudPaper Outlined="true" Class="pa-4 rounded-xl d-flex align-center gap-4">
+            <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Class="rounded-lg">
+                <MudIcon Icon="@Icons.Material.Filled.Event" />
+            </MudAvatar>
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Class="font-bold">General Checkup</MudText>
+                <MudText Typo="Typo.body2" Style="color: #64748b;">Dr. Sarah Smith • Oct 24</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </MudPaper>
+
+        <MudPaper Outlined="true" Class="pa-4 rounded-xl d-flex align-center gap-4">
+            <MudAvatar Color="Color.Success" Variant="Variant.Filled" Class="rounded-lg">
+                <MudIcon Icon="@Icons.Material.Filled.Medication" />
+            </MudAvatar>
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Class="font-bold">Vitamin D3</MudText>
+                <MudText Typo="Typo.body2" Style="color: #64748b;">2000 IU • Daily</MudText>
+            </div>
+            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">CURRENT</MudChip>
+        </MudPaper>
+
+        <MudPaper Outlined="true" Class="pa-4 rounded-xl d-flex align-center gap-4" Style="background-color: #fff1f2; border-color: #fecdd3;">
+            <MudAvatar Color="Color.Error" Variant="Variant.Filled" Class="rounded-lg">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" />
+            </MudAvatar>
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Class="font-bold text-error">Allergies</MudText>
+                <MudText Typo="Typo.body2" Style="color: #be123c;">Penicillin, Peanuts</MudText>
+            </div>
+        </MudPaper>
+    </div>
+</div>
+
+@code {
+
+}

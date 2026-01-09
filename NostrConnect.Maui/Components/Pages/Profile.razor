@@ -1,0 +1,76 @@
+﻿@page "/profile"
+@using NostrConnect.Maui.Services.Identity
+@using NostrConnect.Maui.Services
+@using BlazeJump.Tools.Services.Persistence
+@using Newtonsoft.Json
+@inject INativeIdentityService IdentityService
+@inject INostrDataService DataService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Profile</PageTitle>
+
+<MudStack AlignItems="AlignItems.Stretch" Spacing="4">
+    <MudText Typo="Typo.h4" Class="mb-4">Create Profile</MudText>
+    
+    <MudTextField @bind-Value="firstName" 
+                  Label="First Name" 
+                  Variant="Variant.Outlined" 
+                  Required="true" />
+    
+    <MudTextField @bind-Value="lastName" 
+                  Label="Last Name" 
+                  Variant="Variant.Outlined" 
+                  Required="true" />
+    
+    <MudDatePicker @bind-Date="dateOfBirth" 
+                   Label="Date of Birth" 
+                   Variant="Variant.Outlined" 
+                   Required="true"
+                   MaxDate="DateTime.Today" />
+    
+    <MudButton Variant="Variant.Filled" 
+               Color="Color.Primary" 
+               Size="Size.Large" 
+               OnClick="SaveProfile"
+               Disabled="@(!IsValid())">
+        Save Profile
+    </MudButton>
+</MudStack>
+
+@code {
+    private string firstName = string.Empty;
+    private string lastName = string.Empty;
+    private DateTime? dateOfBirth;
+
+    private bool IsValid()
+    {
+        return !string.IsNullOrWhiteSpace(firstName) && 
+               !string.IsNullOrWhiteSpace(lastName) && 
+               dateOfBirth.HasValue;
+    }
+
+    private async Task SaveProfile()
+    {
+        if (!IsValid())
+            return;
+
+        await IdentityService.CreateUserProfile();
+        
+        if (IdentityService.ActiveUserProfile != null)
+        {
+            IdentityService.ActiveUserProfile.Name = $"{firstName} {lastName}";
+            
+            var metadata = new 
+            { 
+                DateOfBirth = dateOfBirth!.Value.ToString("yyyy-MM-dd"),
+                FirstName = firstName,
+                LastName = lastName
+            };
+            IdentityService.ActiveUserProfile.About = JsonConvert.SerializeObject(metadata);
+            
+            await DataService.SaveUserProfileAsync(IdentityService.ActiveUserProfile);
+        }
+        
+        NavigationManager.NavigateTo("/overview");
+    }
+}

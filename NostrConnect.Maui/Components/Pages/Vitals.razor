@@ -1,0 +1,121 @@
+@page "/vitals"
+@using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Identity
+@using NostrConnect.Maui.Models
+@inject IHealthDataService HealthDataService
+@inject INativeIdentityService IdentityService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="pa-4">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <MudText Typo="Typo.h5" Class="font-bold">Vital Signs</MudText>
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => _addDialogOpen = true)">
+            Add Vital
+        </MudButton>
+    </div>
+
+    @if (_vitals.Any())
+    {
+        <MudStack Spacing="3">
+            @foreach (var vital in _vitals)
+            {
+                <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body1" Class="font-bold">@vital.Type</MudText>
+                            <MudText Typo="Typo.h5" Class="font-bold">@vital.Value @vital.Unit</MudText>
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">@vital.Timestamp.ToString("MMM dd, yyyy HH:mm")</MudText>
+                        </div>
+                        <MudIcon Icon="@GetVitalIcon(vital.Type)" Color="Color.Error" Size="Size.Large" />
+                    </div>
+                </MudPaper>
+            }
+        </MudStack>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info">
+            No vital signs recorded yet. Click "Add Vital" to record your first measurement.
+        </MudAlert>
+    }
+</MudContainer>
+
+<MudDialog @bind-Visible="_addDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add Vital Sign</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudSelect @bind-Value="_newVital.Type" Label="Type" Variant="Variant.Outlined" Required>
+                <MudSelectItem Value="@("Heart Rate")">Heart Rate</MudSelectItem>
+                <MudSelectItem Value="@("Blood Pressure")">Blood Pressure</MudSelectItem>
+                <MudSelectItem Value="@("Temperature")">Temperature</MudSelectItem>
+                <MudSelectItem Value="@("Weight")">Weight</MudSelectItem>
+                <MudSelectItem Value="@("Blood Glucose")">Blood Glucose</MudSelectItem>
+                <MudSelectItem Value="@("Oxygen Saturation")">Oxygen Saturation</MudSelectItem>
+            </MudSelect>
+            <MudNumericField @bind-Value="_newVital.Value" Label="Value" Variant="Variant.Outlined" Required />
+            <MudTextField @bind-Value="_newVital.Unit" Label="Unit" Variant="Variant.Outlined" Required 
+                          Placeholder="e.g., bpm, mmHg, °F, lbs, mg/dL, %" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _addDialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveVital">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<VitalSign> _vitals = new();
+    private VitalSign _newVital = new();
+    private bool _addDialogOpen = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVitals();
+    }
+
+    private async Task LoadVitals()
+    {
+        var publicKey = IdentityService.ActiveUserProfile?.PublicKey;
+        if (string.IsNullOrEmpty(publicKey))
+            return;
+
+        _vitals = await HealthDataService.GetVitalSignsAsync(publicKey);
+    }
+
+    private async Task SaveVital()
+    {
+        if (string.IsNullOrWhiteSpace(_newVital.Type) || 
+            _newVital.Value <= 0 || 
+            string.IsNullOrWhiteSpace(_newVital.Unit))
+        {
+            Snackbar.Add("Please fill in all fields", Severity.Warning);
+            return;
+        }
+
+        await HealthDataService.SaveVitalSignAsync(_newVital);
+        Snackbar.Add("Vital sign saved and posted to Nostr", Severity.Success);
+        
+        _addDialogOpen = false;
+        _newVital = new();
+        await LoadVitals();
+    }
+
+    private string GetVitalIcon(string type)
+    {
+        return type.ToLower() switch
+        {
+            "heart rate" => Icons.Material.Filled.Favorite,
+            "blood pressure" => Icons.Material.Filled.MonitorHeart,
+            "temperature" => Icons.Material.Filled.Thermostat,
+            "weight" => Icons.Material.Filled.Scale,
+            "blood glucose" => Icons.Material.Filled.Bloodtype,
+            "oxygen saturation" => Icons.Material.Filled.Air,
+            _ => Icons.Material.Filled.HealthAndSafety
+        };
+    }
+}

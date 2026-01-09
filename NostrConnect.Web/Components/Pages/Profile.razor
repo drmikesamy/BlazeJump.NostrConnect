@@ -1,0 +1,45 @@
+﻿@page "/profile"
+@using NostrConnect.Web.Services.Identity
+@inject IWebIdentityService IdentityService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Profile</PageTitle>
+
+<MudStack AlignItems="AlignItems.Stretch" Spacing="4">
+    <MudText Typo="Typo.h4" Class="mb-4">Create Profile</MudText>
+    
+    <MudTextField @bind-Value="firstName" 
+                  Label="First Name" 
+                  Variant="Variant.Outlined" 
+                  Required="true" />
+    
+    <MudTextField @bind-Value="lastName" 
+                  Label="Last Name" 
+                  Variant="Variant.Outlined" 
+                  Required="true" />
+    
+    <MudDatePicker @bind-Date="dateOfBirth" 
+                   Label="Date of Birth" 
+                   Variant="Variant.Outlined" 
+                   Required="true" />
+    
+    <MudButton Variant="Variant.Filled" 
+               Color="Color.Primary" 
+               Size="Size.Large" 
+               OnClick="SaveProfile">
+        Save Profile
+    </MudButton>
+</MudStack>
+
+@code {
+    private string firstName = string.Empty;
+    private string lastName = string.Empty;
+    private DateTime? dateOfBirth;
+
+    private async Task SaveProfile()
+    {
+        await IdentityService.CreateUserProfile();
+        IdentityService.ActiveUserProfile.Name = $"{firstName} {lastName}";
+        NavigationManager.NavigateTo("/overview");
+    }
+}
