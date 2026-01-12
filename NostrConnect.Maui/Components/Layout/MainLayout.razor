@@ -15,8 +15,8 @@
     {
         <!-- App Bar -->
         <MudAppBar Elevation="1">
-            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-            <MudText Typo="Typo.h6">Desilo</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Default" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+            <MudText Typo="Typo.h6" Color="Color.Default">Desilo</MudText>
             <MudSpacer />
             <MudIconButton Icon="@Icons.Material.Filled.QrCodeScanner" Color="Color.Default" OnClick="@(() => NavigationManager.NavigateTo("sync"))" />
             <MudIconButton Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Primary" Class="ml-2" OnClick="@(() => _isProfileOpen = true)" />

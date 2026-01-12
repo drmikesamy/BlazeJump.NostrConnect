@@ -68,6 +68,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Heron.MudCalendar" Version="3.4.0" />
         <PackageReference Include="Hl7.Fhir.R5" Version="6.0.1" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />

@@ -27,9 +27,9 @@ namespace NostrConnect.Maui.Data
         public DbSet<NostrConnectSession> NostrConnectSessions { get; set; }
 
         /// <summary>
-        /// Gets or sets the health data table.
+        /// Gets or sets the local FHIR resources table.
         /// </summary>
-        public DbSet<HealthData> HealthData { get; set; }
+        public DbSet<LocalResource> LocalResources { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NostrDbContext"/> class.
@@ -83,12 +83,15 @@ namespace NostrConnect.Maui.Data
                         v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>());
             });
 
-            // Configure HealthData
-            modelBuilder.Entity<HealthData>(entity =>
+            // Configure LocalResource
+            modelBuilder.Entity<LocalResource>(entity =>
             {
-                entity.HasIndex(e => e.PublicKey);
-                entity.HasIndex(e => e.Type);
-                entity.HasIndex(e => e.Timestamp);
+                entity.HasIndex(e => e.FhirType);
+                entity.HasIndex(e => e.LastUpdated);
+                entity.HasIndex(e => e.NostrEventId);
+                entity.HasIndex(e => e.IsDeleted);
+                entity.HasIndex(e => new { e.FhirType, e.IsDeleted });
+                entity.HasIndex(e => new { e.FhirType, e.LastUpdated });
             });
         }
     }

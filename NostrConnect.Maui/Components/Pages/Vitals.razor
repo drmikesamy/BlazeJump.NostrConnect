@@ -1,8 +1,10 @@
 @page "/vitals"
-@using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Fhir
+@using NostrConnect.Maui.Services.Fhir.Extensions
 @using NostrConnect.Maui.Services.Identity
-@using NostrConnect.Maui.Models
-@inject IHealthDataService HealthDataService
+@using Hl7.Fhir.Model
+@using Task = System.Threading.Tasks.Task
+@inject IFhirResourceService<Observation> FhirService
 @inject INativeIdentityService IdentityService
 @inject ISnackbar Snackbar
 
@@ -20,16 +22,16 @@
     @if (_vitals.Any())
     {
         <MudStack Spacing="3">
-            @foreach (var vital in _vitals)
+            @foreach (var (vital, localId) in _vitals)
             {
                 <MudPaper Outlined="true" Class="pa-4 rounded-xl">
                     <div class="d-flex justify-space-between align-center">
                         <div>
-                            <MudText Typo="Typo.body1" Class="font-bold">@vital.Type</MudText>
-                            <MudText Typo="Typo.h5" Class="font-bold">@vital.Value @vital.Unit</MudText>
-                            <MudText Typo="Typo.body2" Style="color: #64748b;">@vital.Timestamp.ToString("MMM dd, yyyy HH:mm")</MudText>
+                            <MudText Typo="Typo.body1" Class="font-bold">@vital.GetType()</MudText>
+                            <MudText Typo="Typo.h5" Class="font-bold">@vital.GetValue() @vital.GetUnit()</MudText>
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">@vital.GetTimestamp().ToString("MMM dd, yyyy HH:mm")</MudText>
                         </div>
-                        <MudIcon Icon="@GetVitalIcon(vital.Type)" Color="Color.Error" Size="Size.Large" />
+                        <MudIcon Icon="@vital.GetVitalIcon()" Color="Color.Error" Size="Size.Large" />
                     </div>
                 </MudPaper>
             }
@@ -49,7 +51,7 @@
     </TitleContent>
     <DialogContent>
         <MudStack Spacing="3">
-            <MudSelect @bind-Value="_newVital.Type" Label="Type" Variant="Variant.Outlined" Required>
+            <MudSelect @bind-Value="_type" Label="Type" Variant="Variant.Outlined" Required>
                 <MudSelectItem Value="@("Heart Rate")">Heart Rate</MudSelectItem>
                 <MudSelectItem Value="@("Blood Pressure")">Blood Pressure</MudSelectItem>
                 <MudSelectItem Value="@("Temperature")">Temperature</MudSelectItem>
@@ -57,8 +59,8 @@
                 <MudSelectItem Value="@("Blood Glucose")">Blood Glucose</MudSelectItem>
                 <MudSelectItem Value="@("Oxygen Saturation")">Oxygen Saturation</MudSelectItem>
             </MudSelect>
-            <MudNumericField @bind-Value="_newVital.Value" Label="Value" Variant="Variant.Outlined" Required />
-            <MudTextField @bind-Value="_newVital.Unit" Label="Unit" Variant="Variant.Outlined" Required 
+            <MudNumericField @bind-Value="_value" Label="Value" Variant="Variant.Outlined" Required />
+            <MudTextField @bind-Value="_unit" Label="Unit" Variant="Variant.Outlined" Required 
                           Placeholder="e.g., bpm, mmHg, °F, lbs, mg/dL, %" />
         </MudStack>
     </DialogContent>
@@ -69,9 +71,13 @@
 </MudDialog>
 
 @code {
-    private List<VitalSign> _vitals = new();
-    private VitalSign _newVital = new();
+    private List<(Observation, Guid)> _vitals = new();
     private bool _addDialogOpen = false;
+    
+    // Form fields
+    private string _type = string.Empty;
+    private decimal _value = 0;
+    private string _unit = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -84,38 +90,38 @@
         if (string.IsNullOrEmpty(publicKey))
             return;
 
-        _vitals = await HealthDataService.GetVitalSignsAsync(publicKey);
+        var observations = await FhirService.GetAllAsync(publicKey);
+        _vitals = observations.Select(o => (o, FhirService.GetLocalResourceId(o) ?? Guid.Empty)).ToList();
     }
 
     private async Task SaveVital()
     {
-        if (string.IsNullOrWhiteSpace(_newVital.Type) || 
-            _newVital.Value <= 0 || 
-            string.IsNullOrWhiteSpace(_newVital.Unit))
+        if (string.IsNullOrWhiteSpace(_type) || 
+            _value <= 0 || 
+            string.IsNullOrWhiteSpace(_unit))
         {
             Snackbar.Add("Please fill in all fields", Severity.Warning);
             return;
         }
 
-        await HealthDataService.SaveVitalSignAsync(_newVital);
-        Snackbar.Add("Vital sign saved and posted to Nostr", Severity.Success);
-        
-        _addDialogOpen = false;
-        _newVital = new();
-        await LoadVitals();
-    }
-
-    private string GetVitalIcon(string type)
-    {
-        return type.ToLower() switch
+        try
         {
-            "heart rate" => Icons.Material.Filled.Favorite,
-            "blood pressure" => Icons.Material.Filled.MonitorHeart,
-            "temperature" => Icons.Material.Filled.Thermostat,
-            "weight" => Icons.Material.Filled.Scale,
-            "blood glucose" => Icons.Material.Filled.Bloodtype,
-            "oxygen saturation" => Icons.Material.Filled.Air,
-            _ => Icons.Material.Filled.HealthAndSafety
-        };
+            var patientId = IdentityService.ActiveUserProfile?.PublicKey;
+            var observation = ObservationExtensions.CreateVitalSign(_type, _value, _unit, patientId);
+
+            await FhirService.SaveAsync(observation);
+            Snackbar.Add("Vital sign saved and posted to Nostr with FHIR format", Severity.Success);
+            
+            _addDialogOpen = false;
+            _type = string.Empty;
+            _value = 0;
+            _unit = string.Empty;
+            
+            await LoadVitals();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving vital sign: {ex.Message}", Severity.Error);
+        }
     }
 }

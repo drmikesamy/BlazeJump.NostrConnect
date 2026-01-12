@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using NostrConnect.Maui.Services;
 using NostrConnect.Maui.Services.Crypto;
+using NostrConnect.Maui.Services.Fhir;
 using NostrConnect.Maui.Data;
 using BlazeJump.Tools;
 using BlazeJump.Tools.Services.Crypto;
@@ -13,6 +14,7 @@ using BlazeJump.Tools.Services.Identity;
 using BlazeJump.Tools.Services.Persistence;
 using MudBlazor.Services;
 using BlazeJump.Tools.Models;
+using Hl7.Fhir.Model;
 
 namespace NostrConnect.Maui;
 
@@ -37,7 +39,11 @@ public static class MauiProgram
             options.UseSqlite($"Data Source={dbPath}"));
 
         builder.Services.AddSingleton<INostrDataService, NostrDataService>();
-        builder.Services.AddScoped<IHealthDataService, HealthDataService>();
+        
+        // Add FHIR services - generic for all resource types
+        builder.Services.AddScoped<IFhirResourceService<Appointment>, FhirResourceService<Appointment>>();
+        builder.Services.AddScoped<IFhirResourceService<Observation>, FhirResourceService<Observation>>();
+        builder.Services.AddScoped<IFhirResourceService<Medication>, FhirResourceService<Medication>>();
 
         CommonServices.ConfigureServices(builder.Services);
         builder.Services.AddSingleton<INativeIdentityService, NativeIdentityService>();
@@ -45,7 +51,7 @@ public static class MauiProgram
 		
 		// Add MudBlazor services
 		builder.Services.AddMudServices();
-
+		
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.Logging.AddDebug();
@@ -58,23 +64,21 @@ public static class MauiProgram
 
         var app = builder.Build();
 
-        // Initialize database
         InitializeDatabase(app.Services).Wait();
 
         return app;
 	}
 
-    private static async Task InitializeDatabase(IServiceProvider services)
+    private static async System.Threading.Tasks.Task InitializeDatabase(IServiceProvider services)
     {
         using var scope = services.CreateScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<NostrDbContext>>();
         using var context = await contextFactory.CreateDbContextAsync();
         
-        // Check if database needs migration by checking if HealthData table exists
         var needsMigration = false;
         try
         {
-            await context.HealthData.AnyAsync();
+            await context.LocalResources.AnyAsync();
         }
         catch
         {
@@ -83,7 +87,6 @@ public static class MauiProgram
 
         if (needsMigration)
         {
-            // Save existing profiles before recreating database
             List<UserProfile> existingProfiles = new List<UserProfile>();
             try
             {
@@ -91,14 +94,11 @@ public static class MauiProgram
             }
             catch
             {
-                // If profiles table doesn't exist, that's ok
             }
 
-            // Delete and recreate database to ensure schema is correct
             await context.Database.EnsureDeletedAsync();
             await context.Database.EnsureCreatedAsync();
 
-            // Restore profiles after database recreation
             if (existingProfiles.Any())
             {
                 context.UserProfiles.AddRange(existingProfiles);
@@ -107,11 +107,9 @@ public static class MauiProgram
         }
         else
         {
-            // No migration needed, just ensure database is created
             await context.Database.EnsureCreatedAsync();
         }
 
-        // Check if we need to restore profile from SecureStorage
         var currentUserPubkey = Preferences.Default.Get("current_user_pubkey", string.Empty);
         if (!string.IsNullOrEmpty(currentUserPubkey))
         {
@@ -120,7 +118,6 @@ public static class MauiProgram
             
             if (existingProfile == null)
             {
-                // Profile exists in SecureStorage but not in database - restore it
                 var privateKey = await SecureStorage.Default.GetAsync($"blazejumpuserkeypair_{currentUserPubkey}");
                 if (!string.IsNullOrEmpty(privateKey))
                 {

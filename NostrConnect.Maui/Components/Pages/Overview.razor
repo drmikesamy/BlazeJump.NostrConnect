@@ -1,29 +1,34 @@
 ﻿@page "/overview"
 @using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Fhir
+@using NostrConnect.Maui.Services.Fhir.Extensions
 @using NostrConnect.Maui.Services.Identity
-@using NostrConnect.Maui.Models
-@inject IHealthDataService HealthDataService
+@using Hl7.Fhir.Model
+@using Task = System.Threading.Tasks.Task
+@inject IFhirResourceService<Observation> ObservationService
+@inject IFhirResourceService<Medication> MedicationService
+@inject IFhirResourceService<Appointment> AppointmentService
 @inject INativeIdentityService IdentityService
 @inject NavigationManager NavigationManager
 
 <div class="mx-auto" style="max-width: 600px; margin-top: 40px;">
     <div class="mb-8">
-        <MudText Typo="Typo.h5" Class="font-bold">Health Overview</MudText>
+        <MudText Typo="Typo.h5" Class="font-bold">@IdentityService!.ActiveUserProfile!.Name</MudText>
         <MudText Typo="Typo.body2" Style="color: #64748b;">@GetLastUpdateText()</MudText>
     </div>
 
     @if (_vitals.Any())
     {
-        <MudGrid Spacing="3" Class="mb-6">
-            @foreach (var vital in _vitals.Take(2))
+        <MudGrid>
+            @foreach (var vital in _vitals.Take(3))
             {
-                <MudItem xs="6">
-                    <MudPaper Outlined="true" Class="pa-4 rounded-xl shadow-sm">
-                        <div class="d-flex align-center gap-2 mb-2 text-error">
-                            <MudIcon Icon="@GetVitalIcon(vital.Type)" Size="Size.Small" />
-                            <MudText Typo="Typo.body2" Class="font-bold">@vital.Type</MudText>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                        <div class="d-flex align-center gap-2 mb-3">
+                            <MudIcon Icon="@vital.GetVitalIcon()" Color="Color.Error" Size="Size.Small" />
+                            <MudText Typo="Typo.body2" Style="color: #94a3b8;">@vital.GetType()</MudText>
                         </div>
-                        <MudText Typo="Typo.h4" Class="font-bold">@vital.Value <small style="font-size: 0.9rem; color: #94a3b8;">@vital.Unit</small></MudText>
+                        <MudText Typo="Typo.h4" Class="font-bold">@vital.GetValue() <small style="font-size: 0.9rem; color: #94a3b8;">@vital.GetUnit()</small></MudText>
                     </MudPaper>
                 </MudItem>
             }
@@ -48,8 +53,8 @@
                         <MudIcon Icon="@Icons.Material.Filled.Event" />
                     </MudAvatar>
                     <div class="flex-grow-1">
-                        <MudText Typo="Typo.body1" Class="font-bold">@appointment.Title</MudText>
-                        <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.Provider • @appointment.DateTime.ToString("MMM dd")</MudText>
+                        <MudText Typo="Typo.body1" Class="font-bold">@appointment.GetTitle()</MudText>
+                        <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.GetProvider() • @appointment.GetDateTime().ToString("MMM dd")</MudText>
                     </div>
                     <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
                 </MudPaper>
@@ -67,17 +72,17 @@
             </MudPaper>
         }
 
-        @if (_medications.Any(m => m.IsActive))
+        @if (_medications.Any(m => m.IsActive()))
         {
-            @foreach (var medication in _medications.Where(m => m.IsActive).Take(1))
+            @foreach (var medication in _medications.Where(m => m.IsActive()).Take(1))
             {
                 <MudPaper Outlined="true" Class="pa-4 rounded-xl d-flex align-center gap-4">
                     <MudAvatar Color="Color.Success" Variant="Variant.Filled" Class="rounded-lg">
                         <MudIcon Icon="@Icons.Material.Filled.Medication" />
                     </MudAvatar>
                     <div class="flex-grow-1">
-                        <MudText Typo="Typo.body1" Class="font-bold">@medication.Name</MudText>
-                        <MudText Typo="Typo.body2" Style="color: #64748b;">@medication.Dosage • @medication.Frequency</MudText>
+                        <MudText Typo="Typo.body1" Class="font-bold">@medication.GetName()</MudText>
+                        <MudText Typo="Typo.body2" Style="color: #64748b;">@medication.GetDosage() • @medication.GetFrequency()</MudText>
                     </div>
                     <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">ACTIVE</MudChip>
                 </MudPaper>
@@ -98,7 +103,7 @@
 </div>
 
 @code {
-    private List<VitalSign> _vitals = new();
+    private List<Observation> _vitals = new();
     private List<Medication> _medications = new();
     private List<Appointment> _appointments = new();
 
@@ -113,16 +118,16 @@
         if (string.IsNullOrEmpty(publicKey))
             return;
 
-        _vitals = await HealthDataService.GetVitalSignsAsync(publicKey);
-        _medications = await HealthDataService.GetMedicationsAsync(publicKey);
-        _appointments = await HealthDataService.GetAppointmentsAsync(publicKey);
+        _vitals = await ObservationService.GetAllAsync(publicKey);
+        _medications = await MedicationService.GetAllAsync(publicKey);
+        _appointments = await AppointmentService.GetAllAsync(publicKey);
     }
 
     private string GetLastUpdateText()
     {
         var allTimestamps = new List<DateTime>();
-        allTimestamps.AddRange(_vitals.Select(v => v.Timestamp));
-        allTimestamps.AddRange(_appointments.Select(a => a.DateTime));
+        allTimestamps.AddRange(_vitals.Select(v => v.GetTimestamp()));
+        allTimestamps.AddRange(_appointments.Select(a => a.GetDateTime()));
         
         if (!allTimestamps.Any())
             return "No data yet";
@@ -135,17 +140,5 @@
         if (diff.TotalHours < 24)
             return $"Updated {(int)diff.TotalHours} hours ago";
         return $"Updated {(int)diff.TotalDays} days ago";
-    }
-
-    private string GetVitalIcon(string type)
-    {
-        return type.ToLower() switch
-        {
-            "heart rate" => Icons.Material.Filled.Favorite,
-            "blood pressure" => Icons.Material.Filled.MonitorHeart,
-            "temperature" => Icons.Material.Filled.Thermostat,
-            "weight" => Icons.Material.Filled.Scale,
-            _ => Icons.Material.Filled.HealthAndSafety
-        };
     }
 }

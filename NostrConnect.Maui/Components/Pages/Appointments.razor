@@ -1,60 +1,162 @@
 @page "/appointments"
-@using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Fhir
+@using NostrConnect.Maui.Services.Fhir.Extensions
 @using NostrConnect.Maui.Services.Identity
 @using NostrConnect.Maui.Models
-@inject IHealthDataService HealthDataService
+@using Hl7.Fhir.Model
+@using Heron.MudCalendar
+@using Task = System.Threading.Tasks.Task
+@inject IFhirResourceService<Appointment> FhirService
 @inject INativeIdentityService IdentityService
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="pa-4">
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-4">
     <div class="d-flex justify-space-between align-center mb-6">
         <MudText Typo="Typo.h5" Class="font-bold">Appointments</MudText>
         <MudButton Variant="Variant.Filled" 
                    Color="Color.Primary" 
                    StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="@(() => _addDialogOpen = true)">
+                   OnClick="@(() => OpenAddDialog())">
             Add Appointment
         </MudButton>
     </div>
 
-    @if (_appointments.Any())
-    {
-        <MudTabs Elevation="0" Rounded="true" Class="mb-4">
-            <MudTabPanel Text="Upcoming">
-                <MudStack Spacing="3" Class="mt-4">
-                    @foreach (var appointment in _appointments.Where(a => a.DateTime >= DateTime.Now).OrderBy(a => a.DateTime))
+    <MudTabs Elevation="2" Rounded="true" Class="mb-4" @bind-ActivePanelIndex="_activeTab">
+        <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
+            <MudPaper Elevation="0" Class="pa-4 mt-4">
+                <MudCalendar T="Heron.MudCalendar.CalendarItem"
+                    @bind-Date="_selectedCalendarDate"
+                    CellClicked="OnDateCellClicked"
+                    ShowWeekNumbers="true"
+                    Items="_calendarItems"
+                    Style="height: 600px;">
+                </MudCalendar>
+
+                @if (_selectedDateAppointments.Any())
+                {
+                    <MudDivider Class="my-4" />
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        Appointments on @(_selectedCalendarDate?.ToString("MMMM dd, yyyy") ?? "Selected Date")
+                    </MudText>
+                    <MudStack Spacing="3">
+                        @foreach (var (appointment, localId) in _selectedDateAppointments.OrderBy(a => a.Item1.GetDateTime()))
+                        {
+                            <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                                <div class="d-flex align-center gap-4">
+                                    <MudAvatar Color="@GetStatusColor(appointment.GetStatusString())" Variant="Variant.Filled" Class="rounded-lg">
+                                        <MudIcon Icon="@Icons.Material.Filled.Event" />
+                                    </MudAvatar>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-space-between align-center">
+                                            <div>
+                                                <MudText Typo="Typo.body1" Class="font-bold">@appointment.GetTitle()</MudText>
+                                                <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.GetProvider()</MudText>
+                                                <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                                    @appointment.GetDateTime().ToString("HH:mm") - @appointment.GetMinutesDuration() min
+                                                </MudText>
+                                                @if (!string.IsNullOrWhiteSpace(appointment.GetLocation()))
+                                                {
+                                                    <MudText Typo="Typo.caption" Style="color: #94a3b8;">
+                                                        <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" /> @appointment.GetLocation()
+                                                    </MudText>
+                                                }
+                                            </div>
+                                            <div>
+                                                <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(appointment.GetStatusString())">@appointment.GetStatusString()</MudChip>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                                       Size="Size.Small" 
+                                                       OnClick="@(() => OpenEditDialog(appointment, localId))" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                       Size="Size.Small" 
+                                                       Color="Color.Error"
+                                                       OnClick="@(() => DeleteAppointment(localId))" />
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(appointment.GetNotes()))
+                                {
+                                    <MudDivider Class="my-3" />
+                                    <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.GetNotes()</MudText>
+                                }
+                            </MudPaper>
+                        }
+                    </MudStack>
+                }
+                else if (_selectedCalendarDate.HasValue)
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-4">
+                        No appointments on this date.
+                    </MudAlert>
+                }
+            </MudPaper>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Upcoming" Icon="@Icons.Material.Filled.Upcoming">
+            <MudStack Spacing="3" Class="mt-4">
+                @if (_appointments.Where(a => a.Item1.IsUpcoming()).Any())
+                {
+                    @foreach (var (appointment, localId) in _appointments.Where(a => a.Item1.IsUpcoming()).OrderBy(a => a.Item1.GetDateTime()))
                     {
                         <MudPaper Outlined="true" Class="pa-4 rounded-xl">
                             <div class="d-flex align-center gap-4">
-                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Class="rounded-lg">
+                                <MudAvatar Color="@GetStatusColor(appointment.GetStatusString())" Variant="Variant.Filled" Class="rounded-lg">
                                     <MudIcon Icon="@Icons.Material.Filled.Event" />
                                 </MudAvatar>
                                 <div class="flex-grow-1">
-                                    <MudText Typo="Typo.body1" Class="font-bold">@appointment.Title</MudText>
-                                    <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.Provider</MudText>
-                                    <MudText Typo="Typo.body2" Style="color: #64748b;">
-                                        @appointment.DateTime.ToString("MMM dd, yyyy 'at' HH:mm")
-                                    </MudText>
-                                    @if (!string.IsNullOrWhiteSpace(appointment.Location))
-                                    {
-                                        <MudText Typo="Typo.caption" Style="color: #94a3b8;">
-                                            <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" /> @appointment.Location
-                                        </MudText>
-                                    }
+                                    <div class="d-flex justify-space-between align-center">
+                                        <div>
+                                            <MudText Typo="Typo.body1" Class="font-bold">@appointment.GetTitle()</MudText>
+                                            <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.GetProvider()</MudText>
+                                            <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                                @appointment.GetDateTime().ToString("MMM dd, yyyy 'at' HH:mm")
+                                            </MudText>
+                                            @if (!string.IsNullOrWhiteSpace(appointment.GetLocation()))
+                                            {
+                                                <MudText Typo="Typo.caption" Style="color: #94a3b8;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" /> @appointment.GetLocation()
+                                                </MudText>
+                                            }
+                                        </div>
+                                        <div>
+                                            <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(appointment.GetStatusString())">@appointment.GetStatusString()</MudChip>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                                   Size="Size.Small" 
+                                                   OnClick="@(() => OpenEditDialog(appointment, localId))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                   Size="Size.Small" 
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => DeleteAppointment(localId))" />
                                 </div>
                             </div>
-                            @if (!string.IsNullOrWhiteSpace(appointment.Notes))
+                            @if (!string.IsNullOrWhiteSpace(appointment.GetNotes()))
                             {
                                 <MudDivider Class="my-3" />
-                                <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.Notes</MudText>
+                                <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.GetNotes()</MudText>
                             }
                         </MudPaper>
                     }
-                </MudStack>
-            </MudTabPanel>
-            <MudTabPanel Text="Past">
-                <MudStack Spacing="3" Class="mt-4">
-                    @foreach (var appointment in _appointments.Where(a => a.DateTime < DateTime.Now).OrderByDescending(a => a.DateTime))
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info">
+                        No upcoming appointments.
+                    </MudAlert>
+                }
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Past" Icon="@Icons.Material.Filled.History">
+            <MudStack Spacing="3" Class="mt-4">
+                @if (_appointments.Where(a => a.Item1.IsPast()).Any())
+                {
+                    @foreach (var (appointment, localId) in _appointments.Where(a => a.Item1.IsPast()).OrderByDescending(a => a.Item1.GetDateTime()))
                     {
                         <MudPaper Outlined="true" Class="pa-4 rounded-xl" Style="opacity: 0.7;">
                             <div class="d-flex align-center gap-4">
@@ -62,61 +164,115 @@
                                     <MudIcon Icon="@Icons.Material.Filled.Event" />
                                 </MudAvatar>
                                 <div class="flex-grow-1">
-                                    <MudText Typo="Typo.body1" Class="font-bold">@appointment.Title</MudText>
-                                    <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.Provider</MudText>
-                                    <MudText Typo="Typo.body2" Style="color: #64748b;">
-                                        @appointment.DateTime.ToString("MMM dd, yyyy")
-                                    </MudText>
+                                    <div class="d-flex justify-space-between align-center">
+                                        <div>
+                                            <MudText Typo="Typo.body1" Class="font-bold">@appointment.GetTitle()</MudText>
+                                            <MudText Typo="Typo.body2" Style="color: #64748b;">@appointment.GetProvider()</MudText>
+                                            <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                                @appointment.GetDateTime().ToString("MMM dd, yyyy")
+                                            </MudText>
+                                        </div>
+                                        <div>
+                                            <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(appointment.GetStatusString())">@appointment.GetStatusString()</MudChip>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </MudPaper>
                     }
-                </MudStack>
-            </MudTabPanel>
-        </MudTabs>
-    }
-    else
-    {
-        <MudAlert Severity="Severity.Info">
-            No appointments recorded yet. Click "Add Appointment" to schedule your first one.
-        </MudAlert>
-    }
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info">
+                        No past appointments.
+                    </MudAlert>
+                }
+            </MudStack>
+        </MudTabPanel>
+    </MudTabs>
 </MudContainer>
 
-<MudDialog @bind-Visible="_addDialogOpen">
+<MudDialog @bind-Visible="_dialogOpen">
     <TitleContent>
-        <MudText Typo="Typo.h6">Add Appointment</MudText>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Appointment" : "Add Appointment")</MudText>
     </TitleContent>
     <DialogContent>
         <MudStack Spacing="3">
-            <MudTextField @bind-Value="_newAppointment.Title" Label="Title" Variant="Variant.Outlined" Required 
+            <MudTextField @bind-Value="_title" Label="Title" Variant="Variant.Outlined" Required 
                           Placeholder="e.g., Annual Checkup" />
-            <MudTextField @bind-Value="_newAppointment.Provider" Label="Provider" Variant="Variant.Outlined" Required 
+            <MudTextField @bind-Value="_provider" Label="Provider" Variant="Variant.Outlined" Required 
                           Placeholder="e.g., Dr. Smith" />
-            <MudDatePicker @bind-Date="_appointmentDate" Label="Date" Variant="Variant.Outlined" Required />
-            <MudTimePicker @bind-Time="_appointmentTime" Label="Time" Variant="Variant.Outlined" Required />
-            <MudTextField @bind-Value="_newAppointment.Location" Label="Location" Variant="Variant.Outlined" 
+            
+            <MudGrid>
+                <MudItem xs="8">
+                    <MudDatePicker @bind-Date="_appointmentDate" Label="Date" Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudTimePicker @bind-Time="_appointmentTime" Label="Time" Variant="Variant.Outlined" Required />
+                </MudItem>
+            </MudGrid>
+
+            <MudNumericField @bind-Value="_minutesDuration" Label="Duration (minutes)" Variant="Variant.Outlined" Min="5" Max="480" />
+
+            <MudSelect @bind-Value="_status" Label="Status" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("proposed")">Proposed</MudSelectItem>
+                <MudSelectItem Value="@("pending")">Pending</MudSelectItem>
+                <MudSelectItem Value="@("booked")">Booked</MudSelectItem>
+                <MudSelectItem Value="@("arrived")">Arrived</MudSelectItem>
+                <MudSelectItem Value="@("fulfilled")">Fulfilled</MudSelectItem>
+                <MudSelectItem Value="@("cancelled")">Cancelled</MudSelectItem>
+                <MudSelectItem Value="@("noshow")">No Show</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField @bind-Value="_location" Label="Location" Variant="Variant.Outlined" 
                           Placeholder="e.g., Medical Center, Room 301" />
-            <MudTextField @bind-Value="_newAppointment.Notes" Label="Notes" Variant="Variant.Outlined" Lines="3" 
+            
+            <MudTextField @bind-Value="_serviceCategory" Label="Service Category" Variant="Variant.Outlined" 
+                          Placeholder="e.g., General Practice, Cardiology" />
+            
+            <MudTextField @bind-Value="_serviceType" Label="Service Type" Variant="Variant.Outlined" 
+                          Placeholder="e.g., Consultation, Follow-up" />
+
+            <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Lines="3" 
                           Placeholder="Additional information..." />
         </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@(() => _addDialogOpen = false)">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAppointment">Save</MudButton>
+        <MudButton OnClick="@(() => _dialogOpen = false)">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAppointment">
+            @(_isEditMode ? "Update" : "Save")
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
-    private List<Appointment> _appointments = new();
-    private Appointment _newAppointment = new();
-    private bool _addDialogOpen = false;
+    private List<(Appointment, Guid)> _appointments = new();
+    private List<(Appointment, Guid)> _selectedDateAppointments = new();
+    private List<Heron.MudCalendar.CalendarItem> _calendarItems = new();
+    private Appointment? _currentAppointment;
+    private Guid _currentLocalId;
+    private bool _dialogOpen = false;
+    private bool _isEditMode = false;
     private DateTime? _appointmentDate;
     private TimeSpan? _appointmentTime;
+    private DateTime? _selectedCalendarDate = DateTime.Today;
+    private int _activeTab = 0;
+
+    // Form fields
+    private string _title = string.Empty;
+    private string _provider = string.Empty;
+    private int _minutesDuration = 30;
+    private string _status = "proposed";
+    private string _location = string.Empty;
+    private string _serviceCategory = string.Empty;
+    private string _serviceType = string.Empty;
+    private string _notes = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAppointments();
+        UpdateSelectedDateAppointments();
+        BuildCalendarItems();
     }
 
     private async Task LoadAppointments()
@@ -125,13 +281,82 @@
         if (string.IsNullOrEmpty(publicKey))
             return;
 
-        _appointments = await HealthDataService.GetAppointmentsAsync(publicKey);
+        var resources = await FhirService.GetAllAsync(publicKey);
+        _appointments = resources.Select(r => (r, FhirService.GetLocalResourceId(r) ?? Guid.Empty)).ToList();
+        BuildCalendarItems();
+    }
+
+    private void BuildCalendarItems()
+    {
+        _calendarItems = _appointments.Select(a => new Heron.MudCalendar.CalendarItem
+        {
+            Start = a.Item1.GetDateTime(),
+            End = a.Item1.GetEndDateTime() ?? a.Item1.GetDateTime().AddMinutes(a.Item1.GetMinutesDuration()),
+            Text = a.Item1.GetTitle()
+        }).ToList();
+    }
+
+    private void OnDateCellClicked(DateTime date)
+    {
+        _selectedCalendarDate = date;
+        UpdateSelectedDateAppointments();
+        StateHasChanged();
+    }
+
+    private void UpdateSelectedDateAppointments()
+    {
+        if (_selectedCalendarDate.HasValue)
+        {
+            _selectedDateAppointments = _appointments
+                .Where(a => a.Item1.GetDateTime().Date == _selectedCalendarDate.Value.Date)
+                .ToList();
+        }
+        else
+        {
+            _selectedDateAppointments = new List<(Appointment, Guid)>();
+        }
+    }
+
+    private void OpenAddDialog()
+    {
+        _currentAppointment = null;
+        _currentLocalId = Guid.Empty;
+        _title = string.Empty;
+        _provider = string.Empty;
+        _appointmentDate = DateTime.Today;
+        _appointmentTime = DateTime.Now.TimeOfDay;
+        _minutesDuration = 30;
+        _status = "proposed";
+        _location = string.Empty;
+        _serviceCategory = string.Empty;
+        _serviceType = string.Empty;
+        _notes = string.Empty;
+        _isEditMode = false;
+        _dialogOpen = true;
+    }
+
+    private void OpenEditDialog(Appointment appointment, Guid localId)
+    {
+        _currentAppointment = appointment;
+        _currentLocalId = localId;
+        _title = appointment.GetTitle();
+        _provider = appointment.GetProvider();
+        _appointmentDate = appointment.GetDateTime().Date;
+        _appointmentTime = appointment.GetDateTime().TimeOfDay;
+        _minutesDuration = appointment.GetMinutesDuration();
+        _status = appointment.GetStatusString();
+        _location = appointment.GetLocation();
+        _serviceCategory = appointment.GetServiceCategory();
+        _serviceType = appointment.GetServiceType();
+        _notes = appointment.GetNotes();
+        _isEditMode = true;
+        _dialogOpen = true;
     }
 
     private async Task SaveAppointment()
     {
-        if (string.IsNullOrWhiteSpace(_newAppointment.Title) || 
-            string.IsNullOrWhiteSpace(_newAppointment.Provider) ||
+        if (string.IsNullOrWhiteSpace(_title) || 
+            string.IsNullOrWhiteSpace(_provider) ||
             !_appointmentDate.HasValue ||
             !_appointmentTime.HasValue)
         {
@@ -139,15 +364,78 @@
             return;
         }
 
-        _newAppointment.DateTime = _appointmentDate.Value.Date + _appointmentTime.Value;
+        var dateTime = _appointmentDate.Value.Date + _appointmentTime.Value;
+        var patientId = IdentityService.ActiveUserProfile?.PublicKey;
 
-        await HealthDataService.SaveAppointmentAsync(_newAppointment);
-        Snackbar.Add("Appointment saved and posted to Nostr", Severity.Success);
-        
-        _addDialogOpen = false;
-        _newAppointment = new();
-        _appointmentDate = null;
-        _appointmentTime = null;
-        await LoadAppointments();
+        try
+        {
+            if (_isEditMode && _currentAppointment != null)
+            {
+                // Update existing appointment
+                _currentAppointment.SetTitle(_title);
+                _currentAppointment.SetProvider(_provider, patientId);
+                _currentAppointment.SetDateTime(dateTime, _minutesDuration);
+                _currentAppointment.SetStatus(_status);
+                _currentAppointment.SetLocation(_location);
+                _currentAppointment.SetServiceCategory(_serviceCategory);
+                _currentAppointment.SetServiceType(_serviceType);
+                _currentAppointment.SetNotes(_notes);
+
+                await FhirService.UpdateAsync(_currentLocalId, _currentAppointment);
+                Snackbar.Add("Appointment updated successfully", Severity.Success);
+            }
+            else
+            {
+                // Create new appointment
+                var newAppointment = AppointmentExtensions.CreateNew(
+                    _title, _provider, dateTime, _minutesDuration, patientId);
+                
+                newAppointment.SetStatus(_status);
+                newAppointment.SetLocation(_location);
+                newAppointment.SetServiceCategory(_serviceCategory);
+                newAppointment.SetServiceType(_serviceType);
+                newAppointment.SetNotes(_notes);
+
+                await FhirService.SaveAsync(newAppointment);
+                Snackbar.Add("Appointment saved and posted to Nostr with FHIR format", Severity.Success);
+            }
+            
+            _dialogOpen = false;
+            await LoadAppointments();
+            UpdateSelectedDateAppointments();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving appointment: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteAppointment(Guid localId)
+    {
+        try
+        {
+            await FhirService.DeleteAsync(localId);
+            Snackbar.Add("Appointment deleted", Severity.Success);
+            await LoadAppointments();
+            UpdateSelectedDateAppointments();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting appointment: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private Color GetStatusColor(string status)
+    {
+        return status?.ToLower() switch
+        {
+            "booked" => Color.Primary,
+            "arrived" => Color.Info,
+            "fulfilled" => Color.Success,
+            "cancelled" => Color.Error,
+            "noshow" => Color.Warning,
+            "pending" => Color.Warning,
+            _ => Color.Default
+        };
     }
 }
