@@ -1,0 +1,308 @@
+@page "/vaccinations"
+@using Hl7.Fhir.Model
+@using NostrConnect.Maui.Services.Fhir
+@using NostrConnect.Maui.Services.Fhir.Extensions
+@using NostrConnect.Maui.Services.Identity
+@inject IFhirResourceService<Immunization> FhirService
+@inject INativeIdentityService IdentityService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-2">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h4" Class="font-bold">Vaccinations</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _addDialogOpen = true)">
+            Add
+        </MudButton>
+    </div>
+
+    @if (_vaccinations.Any())
+    {
+        <MudStack Spacing="3">
+            @foreach (var (vaccination, localId) in _vaccinations)
+            {
+                <MudPaper Elevation="2" Class="pa-3 rounded-lg">
+                    <div class="d-flex justify-space-between align-center">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-center gap-2 mb-2">
+                                <MudIcon Icon="@vaccination.GetStatusIcon()" Color="@vaccination.GetStatusColor()" />
+                                <MudChip T="string" Color="@vaccination.GetStatusColor()" Size="Size.Small">@vaccination.GetStatus()</MudChip>
+                            </div>
+                            <MudText Typo="Typo.h6" Class="font-bold mb-1">@vaccination.GetVaccineName()</MudText>
+                            <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mb-1">
+                                <strong>Date:</strong> @vaccination.GetDate().ToString("MMM dd, yyyy")
+                            </MudText>
+                            <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mb-1">
+                                <strong>@vaccination.GetDoseNumber()</strong>
+                            </MudText>
+                            
+                            @if (!string.IsNullOrEmpty(vaccination.GetManufacturer()) && vaccination.GetManufacturer() != "Unknown Manufacturer")
+                            {
+                                <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                    <strong>Manufacturer:</strong> @vaccination.GetManufacturer()
+                                </MudText>
+                            }
+
+                            @if (!string.IsNullOrEmpty(vaccination.GetLotNumber()) && vaccination.GetLotNumber() != "N/A")
+                            {
+                                <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                    <strong>Lot:</strong> @vaccination.GetLotNumber()
+                                </MudText>
+                            }
+
+                            @if (!string.IsNullOrEmpty(vaccination.GetPerformer()) && vaccination.GetPerformer() != "Unknown")
+                            {
+                                <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                    <strong>Administered by:</strong> @vaccination.GetPerformer()
+                                </MudText>
+                            }
+
+                            @if (!string.IsNullOrEmpty(vaccination.GetNotes()))
+                            {
+                                <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mt-2">
+                                    @vaccination.GetNotes()
+                                </MudText>
+                            }
+                        </div>
+                        <div class="d-flex gap-2">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                           OnClick="@(() => OpenEditDialog(vaccination, localId))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                           OnClick="@(() => DeleteVaccination(localId))" />
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        </MudStack>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info">
+            No vaccinations recorded yet. Click "Add Vaccination" to record your first one.
+        </MudAlert>
+    }
+</MudContainer>
+
+<MudDialog @bind-Visible="_addDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Vaccination" : "Add Vaccination")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_vaccineName" Label="Vaccine Name" Variant="Variant.Outlined" Required 
+                          Placeholder="e.g., COVID-19, Influenza, Tetanus" />
+            
+            <MudDatePicker @bind-Date="_date" Label="Vaccination Date" Variant="Variant.Outlined" Required />
+
+            <MudNumericField @bind-Value="_doseNumber" Label="Dose Number" Variant="Variant.Outlined" 
+                             Min="1" Placeholder="e.g., 1, 2, 3" />
+
+            <MudNumericField @bind-Value="_seriesDoses" Label="Total Doses in Series (Optional)" Variant="Variant.Outlined" 
+                             Min="1" Placeholder="e.g., 2, 3" />
+
+            <MudTextField @bind-Value="_manufacturer" Label="Manufacturer (Optional)" Variant="Variant.Outlined" 
+                          Placeholder="e.g., Pfizer, Moderna" />
+
+            <MudTextField @bind-Value="_lotNumber" Label="Lot Number (Optional)" Variant="Variant.Outlined" />
+
+            <MudTextField @bind-Value="_site" Label="Site (Optional)" Variant="Variant.Outlined" 
+                          Placeholder="e.g., Left arm, Right deltoid" />
+
+            <MudTextField @bind-Value="_route" Label="Route (Optional)" Variant="Variant.Outlined" 
+                          Placeholder="e.g., Intramuscular, Subcutaneous" />
+
+            <MudTextField @bind-Value="_performer" Label="Administered By (Optional)" Variant="Variant.Outlined" 
+                          Placeholder="e.g., Dr. Smith, Nurse Johnson" />
+
+            <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Lines="3" 
+                          Placeholder="Additional information about the vaccination" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => { _addDialogOpen = false; ResetForm(); })">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveVaccination">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<(Immunization, Guid)> _vaccinations = new();
+    private bool _addDialogOpen = false;
+    private bool _isEditMode = false;
+    private Immunization? _currentVaccination;
+    private Guid _currentLocalId;
+    
+    // Form fields
+    private string _vaccineName = string.Empty;
+    private DateTime? _date = DateTime.Today;
+    private int? _doseNumber = 1;
+    private int? _seriesDoses;
+    private string _manufacturer = string.Empty;
+    private string _lotNumber = string.Empty;
+    private string _site = string.Empty;
+    private string _route = string.Empty;
+    private string _performer = string.Empty;
+    private string _notes = string.Empty;
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        await LoadVaccinations();
+    }
+
+    private async System.Threading.Tasks.Task LoadVaccinations()
+    {
+        var publicKey = IdentityService.ActiveUserProfile?.PublicKey;
+        if (string.IsNullOrEmpty(publicKey))
+            return;
+
+        var resources = await FhirService.GetAllAsync(publicKey);
+        _vaccinations = resources.Select(r => (r, FhirService.GetLocalResourceId(r) ?? Guid.Empty))
+            .OrderByDescending(x => x.Item1.GetDate())
+            .ToList();
+    }
+
+    private void OpenEditDialog(Immunization vaccination, Guid localId)
+    {
+        _currentVaccination = vaccination;
+        _currentLocalId = localId;
+        _vaccineName = vaccination.GetVaccineName();
+        _date = vaccination.GetDate();
+        
+        if (vaccination.ProtocolApplied?.Any() == true)
+        {
+            var protocol = vaccination.ProtocolApplied.First();
+            if (int.TryParse(protocol.DoseNumber, out var doseNum))
+                _doseNumber = doseNum;
+            if (!string.IsNullOrEmpty(protocol.SeriesDoses) && int.TryParse(protocol.SeriesDoses, out var seriesDoses))
+                _seriesDoses = seriesDoses;
+        }
+        
+        _manufacturer = vaccination.GetManufacturer();
+        _lotNumber = vaccination.GetLotNumber();
+        _site = vaccination.GetSite();
+        _route = vaccination.GetRoute();
+        _performer = vaccination.GetPerformer();
+        _notes = vaccination.GetNotes();
+        _isEditMode = true;
+        _addDialogOpen = true;
+    }
+
+    private void ResetForm()
+    {
+        _vaccineName = string.Empty;
+        _date = DateTime.Today;
+        _doseNumber = 1;
+        _seriesDoses = null;
+        _manufacturer = string.Empty;
+        _lotNumber = string.Empty;
+        _site = string.Empty;
+        _route = string.Empty;
+        _performer = string.Empty;
+        _notes = string.Empty;
+        _isEditMode = false;
+        _currentVaccination = null;
+    }
+
+    private async System.Threading.Tasks.Task SaveVaccination()
+    {
+        if (string.IsNullOrWhiteSpace(_vaccineName) || !_date.HasValue)
+        {
+            Snackbar.Add("Please fill in all required fields", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var patientId = IdentityService.ActiveUserProfile?.PublicKey;
+
+            if (_isEditMode && _currentVaccination != null)
+            {
+                _currentVaccination.SetVaccineName(_vaccineName);
+                _currentVaccination.SetDate(_date.Value);
+                
+                if (_doseNumber.HasValue)
+                {
+                    _currentVaccination.ProtocolApplied = new List<Immunization.ProtocolAppliedComponent>
+                    {
+                        new Immunization.ProtocolAppliedComponent
+                        {
+                            DoseNumber = _doseNumber.Value.ToString(),
+                            SeriesDoses = _seriesDoses?.ToString()
+                        }
+                    };
+                }
+
+                if (!string.IsNullOrEmpty(_manufacturer))
+                {
+                    _currentVaccination.Manufacturer = new CodeableReference 
+                    { 
+                        Reference = new ResourceReference { Display = _manufacturer }
+                    };
+                }
+                
+                _currentVaccination.LotNumber = !string.IsNullOrEmpty(_lotNumber) ? _lotNumber : null;
+                
+                if (!string.IsNullOrEmpty(_site))
+                    _currentVaccination.Site = new CodeableConcept { Text = _site };
+                
+                if (!string.IsNullOrEmpty(_route))
+                    _currentVaccination.Route = new CodeableConcept { Text = _route };
+                
+                if (!string.IsNullOrEmpty(_performer))
+                {
+                    _currentVaccination.Performer = new List<Immunization.PerformerComponent>
+                    {
+                        new Immunization.PerformerComponent
+                        {
+                            Actor = new ResourceReference { Display = _performer }
+                        }
+                    };
+                }
+
+                _currentVaccination.SetNotes(_notes);
+
+                await FhirService.UpdateAsync(_currentLocalId, _currentVaccination);
+                Snackbar.Add("Vaccination updated successfully", Severity.Success);
+            }
+            else
+            {
+                var vaccination = ImmunizationExtensions.CreateNew(
+                    _vaccineName,
+                    _date.Value,
+                    _doseNumber,
+                    _seriesDoses,
+                    !string.IsNullOrEmpty(_manufacturer) ? _manufacturer : null,
+                    !string.IsNullOrEmpty(_lotNumber) ? _lotNumber : null,
+                    !string.IsNullOrEmpty(_site) ? _site : null,
+                    !string.IsNullOrEmpty(_route) ? _route : null,
+                    !string.IsNullOrEmpty(_performer) ? _performer : null,
+                    !string.IsNullOrEmpty(_notes) ? _notes : null,
+                    patientId
+                );
+
+                await FhirService.SaveAsync(vaccination);
+                Snackbar.Add("Vaccination saved and posted to Nostr with FHIR format", Severity.Success);
+            }
+            
+            _addDialogOpen = false;
+            ResetForm();
+            await LoadVaccinations();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving vaccination: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async System.Threading.Tasks.Task DeleteVaccination(Guid localId)
+    {
+        try
+        {
+            await FhirService.DeleteAsync(localId);
+            Snackbar.Add("Vaccination deleted", Severity.Success);
+            await LoadVaccinations();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting vaccination: {ex.Message}", Severity.Error);
+        }
+    }
+}

@@ -8,14 +8,14 @@
 @inject INativeIdentityService IdentityService
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="pa-4">
-    <div class="d-flex justify-space-between align-center mb-6">
-        <MudText Typo="Typo.h5" Class="font-bold">Medications</MudText>
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-2">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h4" Class="font-bold">Medications</MudText>
         <MudButton Variant="Variant.Filled" 
                    Color="Color.Primary" 
                    StartIcon="@Icons.Material.Filled.Add"
                    OnClick="@(() => _addDialogOpen = true)">
-            Add Medication
+            Add
         </MudButton>
     </div>
 
@@ -26,7 +26,7 @@
                 <MudStack Spacing="3" Class="mt-4">
                     @foreach (var (medication, localId) in _medications.Where(m => m.Item1.IsActive()))
                     {
-                        <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                        <MudPaper Outlined="true" Class="pa-3 rounded-xl">
                             <div class="d-flex justify-space-between align-center mb-2">
                                 <MudText Typo="Typo.body1" Class="font-bold">@medication.GetName()</MudText>
                                 <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">ACTIVE</MudChip>
@@ -42,7 +42,7 @@
                 <MudStack Spacing="3" Class="mt-4">
                     @foreach (var (medication, localId) in _medications.Where(m => !m.Item1.IsActive()))
                     {
-                        <MudPaper Outlined="true" Class="pa-4 rounded-xl" Style="opacity: 0.7;">
+                        <MudPaper Outlined="true" Class="pa-3 rounded-xl" Style="opacity: 0.7;">
                             <div class="d-flex justify-space-between align-center mb-2">
                                 <MudText Typo="Typo.body1" Class="font-bold">@medication.GetName()</MudText>
                                 <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Outlined">STOPPED</MudChip>

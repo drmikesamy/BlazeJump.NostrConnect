@@ -1,0 +1,315 @@
+@page "/history"
+@using Hl7.Fhir.Model
+@using NostrConnect.Maui.Services.Fhir
+@using NostrConnect.Maui.Services.Fhir.Extensions
+@using NostrConnect.Maui.Services.Identity
+@using FhirCondition = Hl7.Fhir.Model.Condition
+@inject IFhirResourceService<FhirCondition> FhirService
+@inject INativeIdentityService IdentityService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-2">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h4" Class="font-bold">Medical History</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _addDialogOpen = true)">
+            Add
+        </MudButton>
+    </div>
+
+    @if (_conditions.Any())
+    {
+        <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+            <MudTabPanel Text="Active" Icon="@Icons.Material.Filled.LocalHospital">
+                <MudStack Spacing="3" Class="mt-3">
+                    @foreach (var (condition, localId) in _conditions.Where(c => c.Item1.IsActive()))
+                    {
+                        <MudPaper Elevation="2" Class="pa-3 rounded-lg">
+                            <div class="d-flex justify-space-between align-center">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-center gap-2 mb-2">
+                                        <MudIcon Icon="@condition.GetStatusIcon()" Color="@condition.GetStatusColor()" />
+                                        <MudChip T="string" Color="@condition.GetStatusColor()" Size="Size.Small">@condition.GetClinicalStatus()</MudChip>
+                                    </div>
+                                    <MudText Typo="Typo.h6" Class="font-bold mb-1">@condition.GetConditionName()</MudText>
+                                    
+                                    @if (!string.IsNullOrEmpty(condition.GetSeverity()) && condition.GetSeverity() != "Unknown")
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mb-1">
+                                            <strong>Severity:</strong> @condition.GetSeverity()
+                                        </MudText>
+                                    }
+                                    
+                                    @if (condition.GetOnsetDate().HasValue)
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                            <strong>Since:</strong> @condition.GetOnsetDate().Value.ToString("MMM dd, yyyy")
+                                        </MudText>
+                                    }
+
+                                    @if (!string.IsNullOrEmpty(condition.GetBodySite()))
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                            <strong>Site:</strong> @condition.GetBodySite()
+                                        </MudText>
+                                    }
+
+                                    @if (!string.IsNullOrEmpty(condition.GetNotes()))
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mt-2">
+                                            @condition.GetNotes()
+                                        </MudText>
+                                    }
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" 
+                                                   OnClick="@(() => MarkAsResolved(condition, localId))"
+                                                   Title="Mark as Resolved" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                                   OnClick="@(() => OpenEditDialog(condition, localId))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                                   OnClick="@(() => DeleteCondition(localId))" />
+                                </div>
+                            </div>
+                        </MudPaper>
+                    }
+                </MudStack>
+                @if (!_conditions.Any(c => c.Item1.IsActive()))
+                {
+                    <MudAlert Severity="Severity.Success" Class="mt-3">
+                        No active conditions. Great health status!
+                    </MudAlert>
+                }
+            </MudTabPanel>
+            
+            <MudTabPanel Text="Resolved" Icon="@Icons.Material.Filled.CheckCircle">
+                <MudStack Spacing="3" Class="mt-3">
+                    @foreach (var (condition, localId) in _conditions.Where(c => !c.Item1.IsActive()))
+                    {
+                        <MudPaper Elevation="2" Class="pa-3 rounded-lg" Style="opacity: 0.7;">
+                            <div class="d-flex justify-space-between align-center">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-center gap-2 mb-2">
+                                        <MudIcon Icon="@condition.GetStatusIcon()" Color="@condition.GetStatusColor()" />
+                                        <MudChip T="string" Color="@condition.GetStatusColor()" Size="Size.Small">@condition.GetClinicalStatus()</MudChip>
+                                    </div>
+                                    <MudText Typo="Typo.h6" Class="font-bold mb-1">@condition.GetConditionName()</MudText>
+                                    
+                                    @if (condition.GetOnsetDate().HasValue)
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                            <strong>Onset:</strong> @condition.GetOnsetDate().Value.ToString("MMM dd, yyyy")
+                                        </MudText>
+                                    }
+
+                                    @if (condition.GetAbatementDate().HasValue)
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                            <strong>Resolved:</strong> @condition.GetAbatementDate().Value.ToString("MMM dd, yyyy")
+                                        </MudText>
+                                    }
+
+                                    @if (!string.IsNullOrEmpty(condition.GetNotes()))
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mt-2">
+                                            @condition.GetNotes()
+                                        </MudText>
+                                    }
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                                   OnClick="@(() => DeleteCondition(localId))" />
+                                </div>
+                            </div>
+                        </MudPaper>
+                    }
+                </MudStack>
+                @if (!_conditions.Any(c => !c.Item1.IsActive()))
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-3">
+                        No resolved conditions recorded yet.
+                    </MudAlert>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info">
+            No medical conditions recorded yet. Click "Add Condition" to record your first one.
+        </MudAlert>
+    }
+</MudContainer>
+
+<MudDialog @bind-Visible="_addDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Condition" : "Add Condition")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_conditionName" Label="Condition/Diagnosis" Variant="Variant.Outlined" Required 
+                          Placeholder="e.g., Hypertension, Diabetes, Asthma" />
+            
+            <MudDatePicker @bind-Date="_onsetDate" Label="Onset Date (Optional)" Variant="Variant.Outlined" />
+
+            <MudSelect @bind-Value="_severity" Label="Severity (Optional)" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("")">Not Specified</MudSelectItem>
+                <MudSelectItem Value="@("Mild")">Mild</MudSelectItem>
+                <MudSelectItem Value="@("Moderate")">Moderate</MudSelectItem>
+                <MudSelectItem Value="@("Severe")">Severe</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField @bind-Value="_bodySite" Label="Body Site (Optional)" Variant="Variant.Outlined" 
+                          Placeholder="e.g., Left knee, Right lung" />
+
+            <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Lines="3" 
+                          Placeholder="Additional information about the condition" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => { _addDialogOpen = false; ResetForm(); })">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveCondition">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<(FhirCondition, Guid)> _conditions = new();
+    private bool _addDialogOpen = false;
+    private bool _isEditMode = false;
+    private FhirCondition? _currentCondition;
+    private Guid _currentLocalId;
+    
+    // Form fields
+    private string _conditionName = string.Empty;
+    private DateTime? _onsetDate;
+    private string _severity = string.Empty;
+    private string _bodySite = string.Empty;
+    private string _notes = string.Empty;
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        await LoadConditions();
+    }
+
+    private async System.Threading.Tasks.Task LoadConditions()
+    {
+        var publicKey = IdentityService.ActiveUserProfile?.PublicKey;
+        if (string.IsNullOrEmpty(publicKey))
+            return;
+
+        var resources = await FhirService.GetAllAsync(publicKey);
+        _conditions = resources.Select(r => (r, FhirService.GetLocalResourceId(r) ?? Guid.Empty))
+            .OrderByDescending(x => x.Item1.GetRecordedDate())
+            .ToList();
+    }
+
+    private void OpenEditDialog(FhirCondition condition, Guid localId)
+    {
+        _currentCondition = condition;
+        _currentLocalId = localId;
+        _conditionName = condition.GetConditionName();
+        _onsetDate = condition.GetOnsetDate();
+        _severity = condition.GetSeverity();
+        _bodySite = condition.GetBodySite();
+        _notes = condition.GetNotes();
+        _isEditMode = true;
+        _addDialogOpen = true;
+    }
+
+    private void ResetForm()
+    {
+        _conditionName = string.Empty;
+        _onsetDate = null;
+        _severity = string.Empty;
+        _bodySite = string.Empty;
+        _notes = string.Empty;
+        _isEditMode = false;
+        _currentCondition = null;
+    }
+
+    private async System.Threading.Tasks.Task SaveCondition()
+    {
+        if (string.IsNullOrWhiteSpace(_conditionName))
+        {
+            Snackbar.Add("Please enter a condition name", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var patientId = IdentityService.ActiveUserProfile?.PublicKey;
+
+            if (_isEditMode && _currentCondition != null)
+            {
+                _currentCondition.SetConditionName(_conditionName);
+                
+                if (_onsetDate.HasValue)
+                    _currentCondition.SetOnsetDate(_onsetDate.Value);
+
+                if (!string.IsNullOrEmpty(_severity))
+                    _currentCondition.SetSeverity(_severity);
+
+                if (!string.IsNullOrEmpty(_bodySite))
+                    _currentCondition.BodySite = new List<CodeableConcept>
+                    {
+                        new CodeableConcept { Text = _bodySite }
+                    };
+
+                _currentCondition.SetNotes(_notes);
+
+                await FhirService.UpdateAsync(_currentLocalId, _currentCondition);
+                Snackbar.Add("Condition updated successfully", Severity.Success);
+            }
+            else
+            {
+                var condition = ConditionExtensions.CreateNew(
+                    _conditionName,
+                    _onsetDate,
+                    !string.IsNullOrEmpty(_severity) ? _severity : null,
+                    !string.IsNullOrEmpty(_bodySite) ? _bodySite : null,
+                    !string.IsNullOrEmpty(_notes) ? _notes : null,
+                    patientId
+                );
+
+                await FhirService.SaveAsync(condition);
+                Snackbar.Add("Condition saved and posted to Nostr with FHIR format", Severity.Success);
+            }
+            
+            _addDialogOpen = false;
+            ResetForm();
+            await LoadConditions();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving condition: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async System.Threading.Tasks.Task MarkAsResolved(FhirCondition condition, Guid localId)
+    {
+        try
+        {
+            condition.MarkAsResolved();
+            await FhirService.UpdateAsync(localId, condition);
+            Snackbar.Add("Condition marked as resolved", Severity.Success);
+            await LoadConditions();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating condition: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async System.Threading.Tasks.Task DeleteCondition(Guid localId)
+    {
+        try
+        {
+            await FhirService.DeleteAsync(localId);
+            Snackbar.Add("Condition deleted", Severity.Success);
+            await LoadConditions();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting condition: {ex.Message}", Severity.Error);
+        }
+    }
+}

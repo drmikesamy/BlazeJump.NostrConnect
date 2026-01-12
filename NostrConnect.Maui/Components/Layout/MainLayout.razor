@@ -75,14 +75,69 @@
         </MudDrawer>
     }
 
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Medium" Class="pa-6">
+    <MudMainContent Style="padding-bottom: 80px;">
+        <MudContainer MaxWidth="MaxWidth.Large" Class="pa-2">
             @Body
         </MudContainer>
     </MudMainContent>
+
+    @if (IdentityService.ActiveUserProfile != null)
+    {
+        <!-- Bottom Navigation Bar -->
+        <MudAppBar Bottom="true" Fixed="true" Elevation="8">
+            <MudToggleGroup T="string"
+                            Value="@GetActiveRoute()"
+                            ValueChanged="@((val) => NavigateAndClose(val))"
+                            SelectionMode="SelectionMode.SingleSelection">
+                <MudToggleItem Value="@("vitals")">
+                    <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.MonitorHeart" />
+                        <MudText Typo="Typo.caption">Vitals</MudText>
+                    </MudStack>
+                </MudToggleItem>
+
+                <MudToggleItem Value="@("history")">
+                    <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Assignment" />
+                        <MudText Typo="Typo.caption">History</MudText>
+                    </MudStack>
+                </MudToggleItem>
+
+                <MudToggleItem Value="@("medications")">
+                    <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Medication" />
+                        <MudText Typo="Typo.caption">Meds</MudText>
+                    </MudStack>
+                </MudToggleItem>
+
+                <MudToggleItem Value="@("allergies")">
+                    <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Healing" />
+                        <MudText Typo="Typo.caption">Allergies</MudText>
+                    </MudStack>
+                </MudToggleItem>
+
+                <MudToggleItem Value="@("vaccinations")">
+                    <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
+                        <MudText Typo="Typo.caption">Vaccines</MudText>
+                    </MudStack>
+                </MudToggleItem>
+
+                <MudToggleItem Value="@("appointments")">
+                    <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" />
+                        <MudText Typo="Typo.caption">Calendar</MudText>
+                    </MudStack>
+                </MudToggleItem>
+            </MudToggleGroup>
+        </MudAppBar>
+    }
 </MudLayout>
 
-@code {
+    @code {
+    [CascadingParameter]
+    private RouteData? RouteData { get; set; }
     private bool _isProfileOpen = false;
     bool _drawerOpen = false;
 
@@ -103,6 +158,15 @@
         }
     };
 
+    private string GetActiveRoute()
+    {
+        var routeAttribute = RouteData?.PageType
+                            .GetCustomAttributes(typeof(RouteAttribute), inherit: true)
+                            .FirstOrDefault() as RouteAttribute;
+
+        return routeAttribute?.Template ?? "/";
+    }
+
     void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
@@ -113,8 +177,11 @@
         IdentityService.ActiveUserProfile = p;
         _isProfileOpen = false;
     }
-    private string GetBaseRelativeUrl()
+
+    private void NavigateAndClose(string path)
     {
-        return NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        _drawerOpen = false;
+        _isProfileOpen = false;
+        NavigationManager.NavigateTo(path);
     }
 }

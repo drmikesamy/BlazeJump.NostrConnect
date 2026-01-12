@@ -1,0 +1,247 @@
+@page "/allergies"
+@using Hl7.Fhir.Model
+@using NostrConnect.Maui.Services.Fhir
+@using NostrConnect.Maui.Services.Fhir.Extensions
+@using NostrConnect.Maui.Services.Identity
+@inject IFhirResourceService<AllergyIntolerance> FhirService
+@inject INativeIdentityService IdentityService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-2">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h4" Class="font-bold">Allergies</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _addDialogOpen = true)">
+            Add
+        </MudButton>
+    </div>
+
+    @if (_allergies.Any())
+    {
+        <MudStack Spacing="3">
+            @foreach (var (allergy, localId) in _allergies)
+            {
+                <MudPaper Elevation="2" Class="pa-3 rounded-lg">
+                    <div class="d-flex justify-space-between align-center">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-center gap-2 mb-2">
+                                <MudChip T="string" Color="@allergy.GetSeverityColor()" Size="Size.Small">@allergy.GetSeverity()</MudChip>
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Outlined">@allergy.GetCategory()</MudChip>
+                            </div>
+                            <MudText Typo="Typo.h6" Class="font-bold mb-1">@allergy.GetAllergen()</MudText>
+                            
+                            @if (allergy.GetReactions().Any())
+                            {
+                                <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mb-1">
+                                    <strong>Reactions:</strong> @string.Join(", ", allergy.GetReactions())
+                                </MudText>
+                            }
+                            
+                            @if (allergy.GetOnsetDate().HasValue)
+                            {
+                                <MudText Typo="Typo.body2" Style="color: #64748b;">
+                                    <strong>First Occurred:</strong> @allergy.GetOnsetDate().Value.ToString("MMM dd, yyyy")
+                                </MudText>
+                            }
+
+                            @if (!string.IsNullOrEmpty(allergy.GetNotes()))
+                            {
+                                <MudText Typo="Typo.body2" Style="color: #64748b;" Class="mt-2">
+                                    @allergy.GetNotes()
+                                </MudText>
+                            }
+                        </div>
+                        <div class="d-flex gap-2">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" 
+                                           OnClick="@(() => OpenEditDialog(allergy, localId))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" 
+                                           OnClick="@(() => DeleteAllergy(localId))" />
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        </MudStack>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info">
+            No allergies recorded yet. Click "Add Allergy" to record your first one.
+        </MudAlert>
+    }
+</MudContainer>
+
+<MudDialog @bind-Visible="_addDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Allergy" : "Add Allergy")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_allergen" Label="Allergen" Variant="Variant.Outlined" Required 
+                          Placeholder="e.g., Penicillin, Peanuts, Latex" />
+            
+            <MudSelect @bind-Value="_category" Label="Category" Variant="Variant.Outlined" Required>
+                <MudSelectItem Value="@("Food")">Food</MudSelectItem>
+                <MudSelectItem Value="@("Medication")">Medication</MudSelectItem>
+                <MudSelectItem Value="@("Environment")">Environment</MudSelectItem>
+                <MudSelectItem Value="@("Biologic")">Biologic</MudSelectItem>
+                <MudSelectItem Value="@("Other")">Other</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect @bind-Value="_severity" Label="Severity" Variant="Variant.Outlined" Required>
+                <MudSelectItem Value="@("Low")">Low</MudSelectItem>
+                <MudSelectItem Value="@("High")">High</MudSelectItem>
+                <MudSelectItem Value="@("Unable-to-assess")">Unable to Assess</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField @bind-Value="_reactions" Label="Reactions" Variant="Variant.Outlined" 
+                          Placeholder="Separate multiple reactions with commas"
+                          HelperText="e.g., Rash, Hives, Difficulty breathing" />
+
+            <MudDatePicker @bind-Date="_onsetDate" Label="First Occurred (Optional)" Variant="Variant.Outlined" />
+
+            <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Lines="3" 
+                          Placeholder="Additional information about the allergy" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => { _addDialogOpen = false; ResetForm(); })">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAllergy">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<(AllergyIntolerance, Guid)> _allergies = new();
+    private bool _addDialogOpen = false;
+    private bool _isEditMode = false;
+    private AllergyIntolerance? _currentAllergy;
+    private Guid _currentLocalId;
+    
+    // Form fields
+    private string _allergen = string.Empty;
+    private string _category = "Food";
+    private string _severity = "Low";
+    private string _reactions = string.Empty;
+    private DateTime? _onsetDate;
+    private string _notes = string.Empty;
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        await LoadAllergies();
+    }
+
+    private async System.Threading.Tasks.Task LoadAllergies()
+    {
+        var publicKey = IdentityService.ActiveUserProfile?.PublicKey;
+        if (string.IsNullOrEmpty(publicKey))
+            return;
+
+        var resources = await FhirService.GetAllAsync(publicKey);
+        _allergies = resources.Select(r => (r, FhirService.GetLocalResourceId(r) ?? Guid.Empty))
+            .OrderByDescending(x => x.Item1.GetRecordedDate())
+            .ToList();
+    }
+
+    private void OpenEditDialog(AllergyIntolerance allergy, Guid localId)
+    {
+        _currentAllergy = allergy;
+        _currentLocalId = localId;
+        _allergen = allergy.GetAllergen();
+        _category = allergy.GetCategory();
+        _severity = allergy.GetSeverity();
+        _reactions = string.Join(", ", allergy.GetReactions());
+        _onsetDate = allergy.GetOnsetDate();
+        _notes = allergy.GetNotes();
+        _isEditMode = true;
+        _addDialogOpen = true;
+    }
+
+    private void ResetForm()
+    {
+        _allergen = string.Empty;
+        _category = "Food";
+        _severity = "Low";
+        _reactions = string.Empty;
+        _onsetDate = null;
+        _notes = string.Empty;
+        _isEditMode = false;
+        _currentAllergy = null;
+    }
+
+    private async System.Threading.Tasks.Task SaveAllergy()
+    {
+        if (string.IsNullOrWhiteSpace(_allergen) || 
+            string.IsNullOrWhiteSpace(_category) ||
+            string.IsNullOrWhiteSpace(_severity))
+        {
+            Snackbar.Add("Please fill in all required fields", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var reactionList = _reactions.Split(',')
+                .Select(r => r.Trim())
+                .Where(r => !string.IsNullOrEmpty(r))
+                .ToList();
+
+            var patientId = IdentityService.ActiveUserProfile?.PublicKey;
+
+            if (_isEditMode && _currentAllergy != null)
+            {
+                _currentAllergy.SetAllergen(_allergen);
+                _currentAllergy.Category = new List<AllergyIntolerance.AllergyIntoleranceCategory?>
+                {
+                    Enum.Parse<AllergyIntolerance.AllergyIntoleranceCategory>(_category, true)
+                };
+                _currentAllergy.SetSeverity(_severity);
+                _currentAllergy.SetReactions(reactionList);
+                
+                if (_onsetDate.HasValue)
+                {
+                    _currentAllergy.Onset = new FhirDateTime(_onsetDate.Value);
+                }
+
+                _currentAllergy.SetNotes(_notes);
+
+                await FhirService.UpdateAsync(_currentLocalId, _currentAllergy);
+                Snackbar.Add("Allergy updated successfully", Severity.Success);
+            }
+            else
+            {
+                var allergy = AllergyIntoleranceExtensions.CreateNew(
+                    _allergen,
+                    _category,
+                    _severity,
+                    reactionList,
+                    _onsetDate,
+                    _notes,
+                    patientId
+                );
+
+                await FhirService.SaveAsync(allergy);
+                Snackbar.Add("Allergy saved and posted to Nostr with FHIR format", Severity.Success);
+            }
+            
+            _addDialogOpen = false;
+            ResetForm();
+            await LoadAllergies();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving allergy: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async System.Threading.Tasks.Task DeleteAllergy(Guid localId)
+    {
+        try
+        {
+            await FhirService.DeleteAsync(localId);
+            Snackbar.Add("Allergy deleted", Severity.Success);
+            await LoadAllergies();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting allergy: {ex.Message}", Severity.Error);
+        }
+    }
+}

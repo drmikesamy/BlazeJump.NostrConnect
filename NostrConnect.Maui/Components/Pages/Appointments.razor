@@ -10,20 +10,20 @@
 @inject INativeIdentityService IdentityService
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="pa-4">
-    <div class="d-flex justify-space-between align-center mb-6">
-        <MudText Typo="Typo.h5" Class="font-bold">Appointments</MudText>
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-2">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h4" Class="font-bold">Appointments</MudText>
         <MudButton Variant="Variant.Filled" 
                    Color="Color.Primary" 
                    StartIcon="@Icons.Material.Filled.Add"
                    OnClick="@(() => OpenAddDialog())">
-            Add Appointment
+            Add
         </MudButton>
     </div>
 
-    <MudTabs Elevation="2" Rounded="true" Class="mb-4" @bind-ActivePanelIndex="_activeTab">
+    <MudTabs Elevation="2" Rounded="true" Class="mb-3" @bind-ActivePanelIndex="_activeTab">
         <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
-            <MudPaper Elevation="0" Class="pa-4 mt-4">
+            <MudPaper Elevation="0" Class="pa-1 mt-2">
                 <MudCalendar T="Heron.MudCalendar.CalendarItem"
                     @bind-Date="_selectedCalendarDate"
                     CellClicked="OnDateCellClicked"
@@ -34,14 +34,14 @@
 
                 @if (_selectedDateAppointments.Any())
                 {
-                    <MudDivider Class="my-4" />
-                    <MudText Typo="Typo.h6" Class="mb-3">
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.h6" Class="mb-2">
                         Appointments on @(_selectedCalendarDate?.ToString("MMMM dd, yyyy") ?? "Selected Date")
                     </MudText>
-                    <MudStack Spacing="3">
+                    <MudStack Spacing="2">
                         @foreach (var (appointment, localId) in _selectedDateAppointments.OrderBy(a => a.Item1.GetDateTime()))
                         {
-                            <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                            <MudPaper Outlined="true" Class="pa-3 rounded-xl">
                                 <div class="d-flex align-center gap-4">
                                     <MudAvatar Color="@GetStatusColor(appointment.GetStatusString())" Variant="Variant.Filled" Class="rounded-lg">
                                         <MudIcon Icon="@Icons.Material.Filled.Event" />
@@ -95,12 +95,12 @@
         </MudTabPanel>
 
         <MudTabPanel Text="Upcoming" Icon="@Icons.Material.Filled.Upcoming">
-            <MudStack Spacing="3" Class="mt-4">
+            <MudStack Spacing="2" Class="mt-2">
                 @if (_appointments.Where(a => a.Item1.IsUpcoming()).Any())
                 {
                     @foreach (var (appointment, localId) in _appointments.Where(a => a.Item1.IsUpcoming()).OrderBy(a => a.Item1.GetDateTime()))
                     {
-                        <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                        <MudPaper Outlined="true" Class="pa-3 rounded-xl">
                             <div class="d-flex align-center gap-4">
                                 <MudAvatar Color="@GetStatusColor(appointment.GetStatusString())" Variant="Variant.Filled" Class="rounded-lg">
                                     <MudIcon Icon="@Icons.Material.Filled.Event" />
@@ -153,12 +153,12 @@
         </MudTabPanel>
 
         <MudTabPanel Text="Past" Icon="@Icons.Material.Filled.History">
-            <MudStack Spacing="3" Class="mt-4">
+            <MudStack Spacing="2" Class="mt-2">
                 @if (_appointments.Where(a => a.Item1.IsPast()).Any())
                 {
                     @foreach (var (appointment, localId) in _appointments.Where(a => a.Item1.IsPast()).OrderByDescending(a => a.Item1.GetDateTime()))
                     {
-                        <MudPaper Outlined="true" Class="pa-4 rounded-xl" Style="opacity: 0.7;">
+                        <MudPaper Outlined="true" Class="pa-3 rounded-xl" Style="opacity: 0.7;">
                             <div class="d-flex align-center gap-4">
                                 <MudAvatar Color="Color.Default" Variant="Variant.Outlined" Class="rounded-lg">
                                     <MudIcon Icon="@Icons.Material.Filled.Event" />

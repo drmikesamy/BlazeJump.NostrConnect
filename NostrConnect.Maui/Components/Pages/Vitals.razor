@@ -8,14 +8,14 @@
 @inject INativeIdentityService IdentityService
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="pa-4">
-    <div class="d-flex justify-space-between align-center mb-6">
-        <MudText Typo="Typo.h5" Class="font-bold">Vital Signs</MudText>
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-2">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h4" Class="font-bold">Vital Signs</MudText>
         <MudButton Variant="Variant.Filled" 
                    Color="Color.Primary" 
                    StartIcon="@Icons.Material.Filled.Add"
                    OnClick="@(() => _addDialogOpen = true)">
-            Add Vital
+            Add
         </MudButton>
     </div>
 
@@ -24,7 +24,7 @@
         <MudStack Spacing="3">
             @foreach (var (vital, localId) in _vitals)
             {
-                <MudPaper Outlined="true" Class="pa-4 rounded-xl">
+                <MudPaper Outlined="true" Class="pa-3 rounded-xl">
                     <div class="d-flex justify-space-between align-center">
                         <div>
                             <MudText Typo="Typo.body1" Class="font-bold">@vital.GetType()</MudText>
