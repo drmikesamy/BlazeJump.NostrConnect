@@ -5,7 +5,7 @@
 @inject NavigationManager NavigationManager
 @inject INativeIdentityService IdentityService
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="@_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -18,6 +18,10 @@
             <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Default" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
             <MudText Typo="Typo.h6" Color="Color.Default">Desilo</MudText>
             <MudSpacer />
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
+                           Color="Color.Default" 
+                           OnClick="@ToggleTheme" 
+                           Title="@(_isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")" />
             <MudIconButton Icon="@Icons.Material.Filled.QrCodeScanner" Color="Color.Default" OnClick="@(() => NavigationManager.NavigateTo("sync"))" />
             <MudIconButton Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Primary" Class="ml-2" OnClick="@(() => _isProfileOpen = true)" />
         </MudAppBar>
@@ -25,7 +29,7 @@
         <!-- Sidebar Drawer -->
         <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
             <MudDrawerHeader>
-                <MudText Typo="Typo.h6">Desilo</MudText>
+                <MudText Typo="Typo.h6" Color="Color.Default">Desilo</MudText>
             </MudDrawerHeader>
             <MudNavMenu>
                 <MudNavLink Href="/overview" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
@@ -84,47 +88,56 @@
     @if (IdentityService.ActiveUserProfile != null)
     {
         <!-- Bottom Navigation Bar -->
-        <MudAppBar Bottom="true" Fixed="true" Elevation="8">
+        <MudAppBar Bottom="true" Fixed="true" Elevation="8" Class="px-0">
             <MudToggleGroup T="string"
                             Value="@GetActiveRoute()"
                             ValueChanged="@((val) => NavigateAndClose(val))"
-                            SelectionMode="SelectionMode.SingleSelection">
-                <MudToggleItem Value="@("vitals")">
+                            SelectionMode="SelectionMode.SingleSelection"
+                            Class="bottom-nav-toggle"
+                            Style="width: 100%; border-radius: 0;">
+                <MudToggleItem Value="@("overview")" Style="border-radius: 0; flex: 1;">
+                    <MudStack Spacing="0" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Dashboard" />
+                        <MudText Typo="Typo.caption">Dashboard</MudText>
+                    </MudStack>
+                </MudToggleItem>
+
+                <MudToggleItem Value="@("vitals")" Style="border-radius: 0; flex: 1;">
                     <MudStack Spacing="0" AlignItems="AlignItems.Center">
                         <MudIcon Icon="@Icons.Material.Filled.MonitorHeart" />
                         <MudText Typo="Typo.caption">Vitals</MudText>
                     </MudStack>
                 </MudToggleItem>
 
-                <MudToggleItem Value="@("history")">
+                <MudToggleItem Value="@("history")" Style="border-radius: 0; flex: 1;">
                     <MudStack Spacing="0" AlignItems="AlignItems.Center">
                         <MudIcon Icon="@Icons.Material.Filled.Assignment" />
                         <MudText Typo="Typo.caption">History</MudText>
                     </MudStack>
                 </MudToggleItem>
 
-                <MudToggleItem Value="@("medications")">
+                <MudToggleItem Value="@("medications")" Style="border-radius: 0; flex: 1;">
                     <MudStack Spacing="0" AlignItems="AlignItems.Center">
                         <MudIcon Icon="@Icons.Material.Filled.Medication" />
                         <MudText Typo="Typo.caption">Meds</MudText>
                     </MudStack>
                 </MudToggleItem>
 
-                <MudToggleItem Value="@("allergies")">
+                <MudToggleItem Value="@("allergies")" Style="border-radius: 0; flex: 1;">
                     <MudStack Spacing="0" AlignItems="AlignItems.Center">
                         <MudIcon Icon="@Icons.Material.Filled.Healing" />
                         <MudText Typo="Typo.caption">Allergies</MudText>
                     </MudStack>
                 </MudToggleItem>
 
-                <MudToggleItem Value="@("vaccinations")">
+                <MudToggleItem Value="@("vaccinations")" Style="border-radius: 0; flex: 1;">
                     <MudStack Spacing="0" AlignItems="AlignItems.Center">
                         <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
                         <MudText Typo="Typo.caption">Vaccines</MudText>
                     </MudStack>
                 </MudToggleItem>
 
-                <MudToggleItem Value="@("appointments")">
+                <MudToggleItem Value="@("appointments")" Style="border-radius: 0; flex: 1;">
                     <MudStack Spacing="0" AlignItems="AlignItems.Center">
                         <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" />
                         <MudText Typo="Typo.caption">Calendar</MudText>
@@ -139,7 +152,8 @@
     [CascadingParameter]
     private RouteData? RouteData { get; set; }
     private bool _isProfileOpen = false;
-    bool _drawerOpen = false;
+    private bool _drawerOpen = false;
+    private bool _isDarkMode = true;
 
     private MudTheme _theme = new MudTheme()
     {
@@ -151,6 +165,45 @@
             Background = "#f8fafc",
             Success = "#10b981",
             Error = "#f43f5e"
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#00d4ff",
+            Secondary = "#ff00ff",
+            AppbarBackground = "rgba(15, 23, 42, 0.95)",
+            Background = "#0f172a",
+            BackgroundGray = "#1e293b",
+            Surface = "#1e293b",
+            DrawerBackground = "#0f172a",
+            DrawerText = "#e2e8f0",
+            AppbarText = "#e2e8f0",
+            TextPrimary = "#f1f5f9",
+            TextSecondary = "#cbd5e1",
+            ActionDefault = "#64748b",
+            ActionDisabled = "#475569",
+            ActionDisabledBackground = "#334155",
+            Divider = "#334155",
+            DividerLight = "#1e293b",
+            TableLines = "#334155",
+            LinesDefault = "#334155",
+            LinesInputs = "#475569",
+            TextDisabled = "#64748b",
+            Success = "#10b981",
+            Info = "#00d4ff",
+            Warning = "#f59e0b",
+            Error = "#ff00ff",
+            Dark = "#0f172a",
+            DarkContrastText = "#f1f5f9",
+            PrimaryContrastText = "#0f172a",
+            SecondaryContrastText = "#0f172a",
+            SuccessContrastText = "#0f172a",
+            InfoContrastText = "#0f172a",
+            WarningContrastText = "#0f172a",
+            ErrorContrastText = "#ffffff",
+            DarkDarken = "#020617",
+            DarkLighten = "#1e293b",
+            HoverOpacity = 0.08,
+            RippleOpacity = 0.5
         },
         LayoutProperties = new LayoutProperties()
         {
@@ -183,5 +236,10 @@
         _drawerOpen = false;
         _isProfileOpen = false;
         NavigationManager.NavigateTo(path);
+    }
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
     }
 }

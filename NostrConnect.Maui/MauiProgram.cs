@@ -47,6 +47,7 @@ public static class MauiProgram
         builder.Services.AddScoped<IFhirResourceService<AllergyIntolerance>, FhirResourceService<AllergyIntolerance>>();
         builder.Services.AddScoped<IFhirResourceService<Immunization>, FhirResourceService<Immunization>>();
         builder.Services.AddScoped<IFhirResourceService<Hl7.Fhir.Model.Condition>, FhirResourceService<Hl7.Fhir.Model.Condition>>();
+        builder.Services.AddScoped<IFhirResourceService<Patient>, FhirResourceService<Patient>>();
 
         CommonServices.ConfigureServices(builder.Services);
         builder.Services.AddSingleton<INativeIdentityService, NativeIdentityService>();

@@ -8,13 +8,56 @@
 @inject IFhirResourceService<Observation> ObservationService
 @inject IFhirResourceService<Medication> MedicationService
 @inject IFhirResourceService<Appointment> AppointmentService
+@inject IFhirResourceService<Patient> PatientService
 @inject INativeIdentityService IdentityService
 @inject NavigationManager NavigationManager
 
 <div class="mx-auto" style="max-width: 600px; margin-top: 40px;">
     <div class="mb-8">
-        <MudText Typo="Typo.h5" Class="font-bold">@IdentityService!.ActiveUserProfile!.Name</MudText>
+        <div class="d-flex align-center gap-3 mb-2">
+            <MudText Typo="Typo.h5" Class="font-bold">@IdentityService!.ActiveUserProfile!.Name</MudText>
+        </div>
         <MudText Typo="Typo.body2" Style="color: #64748b;">@GetLastUpdateText()</MudText>
+        
+        @if (_patient != null && HasHealthInfo())
+        {
+            <MudPaper Outlined="true" Class="pa-3 rounded-xl mt-3">
+                <div class="d-flex align-center gap-4 flex-wrap">
+                    @if (_patient.GetHeight().HasValue)
+                    {
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Height" Size="Size.Small" Style="color: #64748b;" />
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">Height:</MudText>
+                            <MudText Typo="Typo.body2" Class="font-bold">@_patient.GetHeight()!.Value cm</MudText>
+                        </div>
+                    }
+                    @if (_patient.GetWeight().HasValue)
+                    {
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.MonitorWeight" Size="Size.Small" Style="color: #64748b;" />
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">Weight:</MudText>
+                            <MudText Typo="Typo.body2" Class="font-bold">@_patient.GetWeight()!.Value kg</MudText>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_patient.GetBloodType()))
+                    {
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Bloodtype" Size="Size.Small" Style="color: #64748b;" />
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">Blood Type:</MudText>
+                            <MudText Typo="Typo.body2" Class="font-bold">@_patient.GetBloodType()</MudText>
+                        </div>
+                    }
+                    @if (_patient.CalculateBMI().HasValue)
+                    {
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Calculate" Size="Size.Small" Style="color: #64748b;" />
+                            <MudText Typo="Typo.body2" Style="color: #64748b;">BMI:</MudText>
+                            <MudText Typo="Typo.body2" Class="font-bold">@_patient.CalculateBMI()!.Value.ToString("F1")</MudText>
+                        </div>
+                    }
+                </div>
+            </MudPaper>
+        }
     </div>
 
     @if (_vitals.Any())
@@ -106,6 +149,7 @@
     private List<Observation> _vitals = new();
     private List<Medication> _medications = new();
     private List<Appointment> _appointments = new();
+    private Patient? _patient = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -121,6 +165,9 @@
         _vitals = await ObservationService.GetAllAsync(publicKey);
         _medications = await MedicationService.GetAllAsync(publicKey);
         _appointments = await AppointmentService.GetAllAsync(publicKey);
+        
+        // Load patient resource
+        _patient = await PatientService.GetByFhirIdAsync(publicKey);
     }
 
     private string GetLastUpdateText()
@@ -140,5 +187,12 @@
         if (diff.TotalHours < 24)
             return $"Updated {(int)diff.TotalHours} hours ago";
         return $"Updated {(int)diff.TotalDays} days ago";
+    }
+
+    private bool HasHealthInfo()
+    {
+        return _patient?.GetHeight().HasValue == true ||
+               _patient?.GetWeight().HasValue == true ||
+               !string.IsNullOrEmpty(_patient?.GetBloodType());
     }
 }

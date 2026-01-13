@@ -1,10 +1,15 @@
 ﻿@page "/profile"
 @using NostrConnect.Maui.Services.Identity
 @using NostrConnect.Maui.Services
+@using NostrConnect.Maui.Services.Fhir
+@using NostrConnect.Maui.Services.Fhir.Extensions
 @using BlazeJump.Tools.Services.Persistence
+@using Hl7.Fhir.Model
 @using Newtonsoft.Json
+@using SystemTask = System.Threading.Tasks.Task
 @inject INativeIdentityService IdentityService
 @inject INostrDataService DataService
+@inject IFhirResourceService<Patient> PatientService
 @inject NavigationManager NavigationManager
 
 <PageTitle>Create Profile</PageTitle>
@@ -28,11 +33,45 @@
                    Required="true"
                    MaxDate="DateTime.Today" />
     
+    <MudDivider Class="my-2" />
+    
+    <MudText Typo="Typo.h6" Class="mt-2 mb-2">Health Information (Optional)</MudText>
+    
+    <MudNumericField @bind-Value="weight" 
+                     Label="Weight (kg)" 
+                     Variant="Variant.Outlined"
+                     Min="0m"
+                     Step="0.1m"
+                     T="decimal?" />
+    
+    <MudNumericField @bind-Value="height" 
+                     Label="Height (cm)" 
+                     Variant="Variant.Outlined"
+                     Min="0m"
+                     Step="1m"
+                     T="decimal?" />
+    
+    <MudSelect @bind-Value="bloodType" 
+               Label="Blood Type" 
+               Variant="Variant.Outlined"
+               T="string"
+               Clearable="true">
+        <MudSelectItem Value="@("A+")" />
+        <MudSelectItem Value="@("A-")" />
+        <MudSelectItem Value="@("B+")" />
+        <MudSelectItem Value="@("B-")" />
+        <MudSelectItem Value="@("AB+")" />
+        <MudSelectItem Value="@("AB-")" />
+        <MudSelectItem Value="@("O+")" />
+        <MudSelectItem Value="@("O-")" />
+    </MudSelect>
+    
     <MudButton Variant="Variant.Filled" 
                Color="Color.Primary" 
                Size="Size.Large" 
                OnClick="SaveProfile"
-               Disabled="@(!IsValid())">
+               Disabled="@(!IsValid())"
+               Class="mt-4">
         Save Profile
     </MudButton>
 </MudStack>
@@ -41,6 +80,9 @@
     private string firstName = string.Empty;
     private string lastName = string.Empty;
     private DateTime? dateOfBirth;
+    private decimal? weight;
+    private decimal? height;
+    private string? bloodType;
 
     private bool IsValid()
     {
@@ -49,7 +91,7 @@
                dateOfBirth.HasValue;
     }
 
-    private async Task SaveProfile()
+    private async SystemTask SaveProfile()
     {
         if (!IsValid())
             return;
@@ -69,6 +111,19 @@
             IdentityService.ActiveUserProfile.About = JsonConvert.SerializeObject(metadata);
             
             await DataService.SaveUserProfileAsync(IdentityService.ActiveUserProfile);
+
+            // Save health information as FHIR Patient resource
+            var patient = PatientExtensions.CreatePatient(
+                firstName,
+                lastName,
+                dateOfBirth.Value,
+                IdentityService.ActiveUserProfile.PublicKey,
+                weight,
+                height,
+                bloodType
+            );
+
+            await PatientService.SaveAsync(patient);
         }
         
         NavigationManager.NavigateTo("/overview");
