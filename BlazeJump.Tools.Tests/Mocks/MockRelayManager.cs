@@ -8,7 +8,9 @@ namespace BlazeJump.Tools.Tests.Mocks
 {
     public class MockRelayManager : IRelayManager
     {
-        public event EventHandler ProcessMessageQueue;
+#pragma warning disable CS0067 // Event is never used - it's part of the interface
+        public event EventHandler? ProcessMessageQueue;
+#pragma warning restore CS0067
         public ConcurrentQueue<NMessage> ReceivedMessages { get; set; } = new();
         public List<string> Relays { get; } = new() { "wss://mock-relay.com" };
         public ConcurrentDictionary<string, IRelayConnection> RelayConnections { get; } = new();
